@@ -109,6 +109,7 @@ async def analyze(file: UploadFile = File(...)):
 
     overall_risk = analysis.get("overall_risk", "low")
     incident = None
+    coach_msg = None
     if overall_risk in ("medium", "high"):
         # --- Ollama coaching (blocking) -----------------------------------
         try:
@@ -147,6 +148,8 @@ async def analyze(file: UploadFile = File(...)):
         {
             "analysis": analysis,
             "incident_id": incident.id if incident else None,
+            "incident": incident.to_dict() if incident else None,
+            "coach": coach_msg if incident else None,
         }
     )
 
