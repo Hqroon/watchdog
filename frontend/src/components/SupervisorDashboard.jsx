@@ -2,9 +2,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
-
-const PIE_COLORS = { low: "#22c55e", medium: "#eab308", high: "#ef4444" };
-const CATEGORY_COLORS = ["#3b82f6", "#8b5cf6", "#ec4899", "#f97316", "#14b8a6", "#94a3b8"];
+import { CHART, SEVERITY, SURFACE } from "../ui/tokens.js";
 
 function groupByCategory(incidents) {
   const map = {};
@@ -44,12 +42,12 @@ export default function SupervisorDashboard({ incidents, stats }) {
         {[
           { label: "Total Incidents", value: stats.total, color: "text-white" },
           { label: "Unresolved", value: stats.unresolved, color: "text-yellow-400" },
-          { label: "High Severity", value: stats.by_severity?.high ?? 0, color: "text-red-400" },
-          { label: "Low Severity", value: stats.by_severity?.low ?? 0, color: "text-green-400" },
+          { label: "High Severity", value: stats.by_severity?.high ?? 0, color: SEVERITY.high.text },
+          { label: "Low Severity", value: stats.by_severity?.low ?? 0, color: SEVERITY.low.text },
         ].map((kpi) => (
-          <div key={kpi.label} className="bg-gray-900 rounded-xl border border-gray-800 px-4 py-4 text-center">
+          <div key={kpi.label} className={`${SURFACE.card} px-4 py-4 text-center`}>
             <p className={`text-3xl font-bold ${kpi.color}`}>{kpi.value}</p>
-            <p className="text-xs text-gray-400 mt-1">{kpi.label}</p>
+            <p className={`text-xs mt-1 ${SURFACE.mutedText}`}>{kpi.label}</p>
           </div>
         ))}
       </div>
@@ -57,7 +55,7 @@ export default function SupervisorDashboard({ incidents, stats }) {
       {/* Charts row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Severity pie */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+        <div className={`${SURFACE.card} p-4`}>
           <h3 className="text-sm font-semibold text-gray-300 mb-3">By Severity</h3>
           {pieData.length === 0 ? (
             <p className="text-gray-500 text-sm text-center py-8">No data yet</p>
@@ -66,7 +64,7 @@ export default function SupervisorDashboard({ incidents, stats }) {
               <PieChart>
                 <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
                   {pieData.map((entry) => (
-                    <Cell key={entry.name} fill={PIE_COLORS[entry.name] ?? "#94a3b8"} />
+                    <Cell key={entry.name} fill={SEVERITY[entry.name]?.chart ?? CHART.fallback} />
                   ))}
                 </Pie>
                 <Legend />
@@ -77,22 +75,19 @@ export default function SupervisorDashboard({ incidents, stats }) {
         </div>
 
         {/* Category bar */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+        <div className={`${SURFACE.card} p-4`}>
           <h3 className="text-sm font-semibold text-gray-300 mb-3">By Category</h3>
           {categoryData.length === 0 ? (
             <p className="text-gray-500 text-sm text-center py-8">No data yet</p>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={categoryData}>
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#9ca3af" }} />
-                <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{ background: "#1f2937", border: "none", borderRadius: 8 }}
-                  labelStyle={{ color: "#e5e7eb" }}
-                />
+                <XAxis dataKey="name" tick={CHART.axisTick} />
+                <YAxis tick={CHART.axisTick} allowDecimals={false} />
+                <Tooltip contentStyle={CHART.tooltipContent} labelStyle={CHART.tooltipLabel} />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                   {categoryData.map((_, i) => (
-                    <Cell key={i} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
+                    <Cell key={i} fill={CHART.categoryColors[i % CHART.categoryColors.length]} />
                   ))}
                 </Bar>
               </BarChart>
@@ -103,16 +98,13 @@ export default function SupervisorDashboard({ incidents, stats }) {
 
       {/* Hourly trend */}
       {hourData.length > 0 && (
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+        <div className={`${SURFACE.card} p-4`}>
           <h3 className="text-sm font-semibold text-gray-300 mb-3">Incidents by Hour (today)</h3>
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={hourData}>
-              <XAxis dataKey="hour" tick={{ fontSize: 11, fill: "#9ca3af" }} />
-              <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} allowDecimals={false} />
-              <Tooltip
-                contentStyle={{ background: "#1f2937", border: "none", borderRadius: 8 }}
-                labelStyle={{ color: "#e5e7eb" }}
-              />
+              <XAxis dataKey="hour" tick={CHART.axisTick} />
+              <YAxis tick={CHART.axisTick} allowDecimals={false} />
+              <Tooltip contentStyle={CHART.tooltipContent} labelStyle={CHART.tooltipLabel} />
               <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -120,13 +112,13 @@ export default function SupervisorDashboard({ incidents, stats }) {
       )}
 
       {/* Recent incidents table */}
-      <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-        <h3 className="text-sm font-semibold text-gray-300 px-4 py-3 border-b border-gray-800">
+      <div className={SURFACE.cardOverflow}>
+        <h3 className={`text-sm font-semibold text-gray-300 px-4 py-3 border-b ${SURFACE.sectionBorder}`}>
           Recent Incidents
         </h3>
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-gray-300">
-            <thead className="bg-gray-800 text-gray-400 uppercase tracking-wide">
+            <thead className={SURFACE.tableHeader}>
               <tr>
                 <th className="px-4 py-2 text-left">Time</th>
                 <th className="px-4 py-2 text-left">Severity</th>
@@ -135,26 +127,18 @@ export default function SupervisorDashboard({ incidents, stats }) {
                 <th className="px-4 py-2 text-left">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
+            <tbody className={`divide-y ${SURFACE.sectionBorder}`}>
               {incidents.slice(0, 20).map((inc) => (
-                <tr key={inc.id} className="hover:bg-gray-800/50">
-                  <td className="px-4 py-2 whitespace-nowrap text-gray-400">
+                <tr key={inc.id} className={SURFACE.hoverRow}>
+                  <td className={`px-4 py-2 whitespace-nowrap ${SURFACE.mutedText}`}>
                     {new Date(inc.timestamp * 1000).toLocaleTimeString()}
                   </td>
                   <td className="px-4 py-2 capitalize">
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-xs font-bold ${
-                        inc.severity === "high"
-                          ? "bg-red-800 text-red-200"
-                          : inc.severity === "medium"
-                          ? "bg-yellow-800 text-yellow-200"
-                          : "bg-green-800 text-green-200"
-                      }`}
-                    >
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${SEVERITY[inc.severity]?.pill ?? SEVERITY.low.pill}`}>
                       {inc.severity}
                     </span>
                   </td>
-                  <td className="px-4 py-2 capitalize text-gray-400">{inc.category}</td>
+                  <td className={`px-4 py-2 capitalize ${SURFACE.mutedText}`}>{inc.category}</td>
                   <td className="px-4 py-2 max-w-xs truncate">{inc.description}</td>
                   <td className="px-4 py-2">
                     {inc.resolved ? (

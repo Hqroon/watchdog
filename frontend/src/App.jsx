@@ -5,6 +5,7 @@ import CoachPanel from "./components/CoachPanel.jsx";
 import SupervisorDashboard from "./components/SupervisorDashboard.jsx";
 import { useWebSocket } from "./hooks/useWebSocket.js";
 import { getIncidents } from "./api/gemini.js";
+import { BUTTON, STATUS, SURFACE } from "./ui/tokens.js";
 
 const TABS = ["Monitor", "Supervisor"];
 
@@ -58,27 +59,27 @@ export default function App() {
   }, [wsRef]);
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col">
+    <div className={`min-h-screen flex flex-col ${SURFACE.app}`}>
       {/* ── Header ── */}
-      <header className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
+      <header className={`${SURFACE.card} rounded-none border-x-0 border-t-0 px-6 py-3 flex items-center justify-between`}>
         <div className="flex items-center gap-3">
           <span className="text-2xl">🐕</span>
           <h1 className="text-xl font-bold tracking-tight">WatchDog</h1>
-          <span className="text-xs text-gray-400 mt-0.5 hidden sm:block">Workstation Safety Monitor</span>
+          <span className={`text-xs mt-0.5 hidden sm:block ${SURFACE.mutedText}`}>Workstation Safety Monitor</span>
         </div>
 
         <div className="flex items-center gap-4">
           {/* WS status dot */}
           <div className="flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-gray-600 animate-pulse"}`} />
-            <span className="text-xs text-gray-400 hidden sm:block">
+            <span className={`h-2 w-2 rounded-full ${wsConnected ? STATUS.liveDot : STATUS.connectingDot}`} />
+            <span className={`text-xs hidden sm:block ${SURFACE.mutedText}`}>
               {wsConnected ? "Live" : "Connecting…"}
             </span>
           </div>
 
           {/* Unresolved badge */}
           {stats.unresolved > 0 && (
-            <span className="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">
+            <span className={`${STATUS.openBadge} text-xs font-bold px-2 py-0.5 rounded-full animate-pulse`}>
               {stats.unresolved} OPEN
             </span>
           )}
@@ -91,8 +92,8 @@ export default function App() {
                 onClick={() => setTab(t)}
                 className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                   tab === t
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-400 hover:text-white hover:bg-gray-800"
+                    ? BUTTON.tabActive
+                    : BUTTON.primaryGhost
                 }`}
               >
                 {t}

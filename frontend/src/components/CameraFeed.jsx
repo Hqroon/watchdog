@@ -1,14 +1,9 @@
 import { useState, useCallback } from "react";
 import { useCamera } from "../hooks/useCamera.js";
 import { analyzeFrame } from "../api/gemini.js";
+import { BUTTON, SEVERITY, SURFACE } from "../ui/tokens.js";
 
 const INTERVAL_MS = 3000;
-
-const SEV = {
-  low:    { border: "border-green-500",  badge: "bg-green-600",  ring: "ring-green-500/40"  },
-  medium: { border: "border-yellow-500", badge: "bg-yellow-600", ring: "ring-yellow-500/40" },
-  high:   { border: "border-red-500",    badge: "bg-red-600",    ring: "ring-red-500/40"    },
-};
 
 const CATEGORY_ICON = {
   PPE:          "🦺",
@@ -52,10 +47,10 @@ export default function CameraFeed({ onAnalysis }) {
   };
 
   const sev    = hazard?.severity ?? "low";
-  const styles = SEV[sev] ?? SEV.low;
+  const styles = SEVERITY[sev] ?? SEVERITY.low;
 
   return (
-    <div className="bg-gray-900 rounded-xl overflow-hidden border border-gray-800 flex flex-col">
+    <div className={`${SURFACE.card} overflow-hidden flex flex-col`}>
       {/* Video wrapper */}
       <div className={`relative border-4 transition-colors duration-500 ${isActive ? styles.border : "border-gray-700"}`}>
         <video
@@ -69,7 +64,7 @@ export default function CameraFeed({ onAnalysis }) {
         {!isActive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 gap-2">
             <span className="text-4xl">📷</span>
-            <p className="text-gray-400 text-sm">Camera is off</p>
+            <p className={`text-sm ${SURFACE.mutedText}`}>Camera is off</p>
           </div>
         )}
 
@@ -93,7 +88,7 @@ export default function CameraFeed({ onAnalysis }) {
               </span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${styles.badge} text-white`}>
+                  <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${styles.badge}`}>
                     {hazard.severity}
                   </span>
                   <span className="text-xs text-gray-300 capitalize font-medium">
@@ -104,7 +99,7 @@ export default function CameraFeed({ onAnalysis }) {
                   {hazard.description}
                 </p>
                 {hazard.recommendations?.length > 0 && (
-                  <p className="text-xs text-gray-400 mt-1 truncate">
+                  <p className={`text-xs mt-1 truncate ${SURFACE.mutedText}`}>
                     ↳ {hazard.recommendations[0]}
                   </p>
                 )}
@@ -131,7 +126,7 @@ export default function CameraFeed({ onAnalysis }) {
 
       {/* Controls bar */}
       <div className="flex items-center justify-between px-4 py-3">
-        <p className="text-xs text-gray-400">
+        <p className={`text-xs ${SURFACE.mutedText}`}>
           {error ? (
             <span className="text-red-400">{error}</span>
           ) : isActive ? (
@@ -144,8 +139,8 @@ export default function CameraFeed({ onAnalysis }) {
           onClick={toggle}
           className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
             isActive
-              ? "bg-red-600 hover:bg-red-700 text-white"
-              : "bg-blue-600 hover:bg-blue-700 text-white"
+              ? BUTTON.danger
+              : BUTTON.primary
           }`}
         >
           {isActive ? "Stop" : "Start Monitoring"}
