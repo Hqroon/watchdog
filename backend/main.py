@@ -1,13 +1,5 @@
 """
 WatchDog — FastAPI backend
-==========================
-Endpoints
----------
-POST /analyze          Accept a JPEG frame, run Gemini + Ollama, return analysis.
-GET  /incidents        List recent incidents.
-POST /incidents/{id}/resolve  Mark an incident resolved.
-GET  /stats            Aggregated stats.
-WS   /ws               Real-time push of new incidents to connected clients.
 """
 
 from __future__ import annotations
@@ -15,19 +7,61 @@ from __future__ import annotations
 import asyncio
 import base64
 import logging
+import re
 from contextlib import asynccontextmanager
-from typing import List, Set
+from typing import Optional, Set
 
-from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import OAuth2PasswordBearer
+from pydantic import BaseModel
 
+from auth import create_access_token, decode_token, hash_password, verify_password
 from gemini_analyzer import analyze_frame
 from incident_store import Incident, store
+from microsoft_auth import exchange_code_for_token, get_auth_url, get_microsoft_user_info
 from ollama_coach import generate_coaching
+from user_store import create_user, get_user_by_email, init_db, update_last_login
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("watchdog")
+
+
+# ---------------------------------------------------------------------------
+# Auth helpers
+# ---------------------------------------------------------------------------
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+
+
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    payload = decode_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    email = payload.get("sub")
+    if not email:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+    user = get_user_by_email(email)
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+
+# ---------------------------------------------------------------------------
+# Pydantic models
+# ---------------------------------------------------------------------------
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    display_name: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
 
 # ---------------------------------------------------------------------------
 # WebSocket connection manager
@@ -63,12 +97,13 @@ manager = ConnectionManager()
 # ---------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
     logger.info("WatchDog backend starting…")
     yield
     logger.info("WatchDog backend stopping…")
 
 
-app = FastAPI(title="WatchDog API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="WatchDog API", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -80,37 +115,102 @@ app.add_middleware(
 
 
 # ---------------------------------------------------------------------------
-# Routes
+# Auth routes
+# ---------------------------------------------------------------------------
+@app.post("/auth/register")
+async def register(body: RegisterRequest):
+    if not re.match(r"^[^@]+@[^@]+\.[^@]+$", body.email):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    if len(body.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if get_user_by_email(body.email):
+        raise HTTPException(status_code=400, detail="Email already registered")
+    create_user(body.email, body.display_name, hash_password(body.password), "local")
+    return {"message": "User created"}
+
+
+@app.post("/auth/login")
+async def login(body: LoginRequest):
+    user = get_user_by_email(body.email)
+    if not user or user["auth_provider"] != "local":
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not verify_password(body.password, user["hashed_password"]):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    update_last_login(body.email)
+    token = create_access_token({"sub": user["email"]})
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {"email": user["email"], "display_name": user["display_name"]},
+    }
+
+
+@app.get("/auth/microsoft")
+async def microsoft_login():
+    return {"auth_url": get_auth_url()}
+
+
+@app.get("/auth/microsoft/callback")
+async def microsoft_callback(code: str = Query(...)):
+    token_result = exchange_code_for_token(code)
+    if not token_result:
+        raise HTTPException(status_code=400, detail="Failed to exchange code for token")
+    access_token = token_result.get("access_token")
+    user_info = get_microsoft_user_info(access_token)
+    if not user_info:
+        raise HTTPException(status_code=400, detail="Failed to get user info from Microsoft")
+    email = user_info.get("mail") or user_info.get("userPrincipalName")
+    if not email:
+        raise HTTPException(status_code=400, detail="Could not determine email from Microsoft account")
+    display_name = user_info.get("displayName") or email
+    user = get_user_by_email(email)
+    if not user:
+        user = create_user(email, display_name, None, "microsoft")
+    update_last_login(email)
+    jwt_token = create_access_token({"sub": email})
+    return {
+        "access_token": jwt_token,
+        "token_type": "bearer",
+        "user": {"email": email, "display_name": display_name},
+    }
+
+
+@app.get("/auth/me")
+async def get_me(current_user: dict = Depends(get_current_user)):
+    return {k: v for k, v in current_user.items() if k != "hashed_password"}
+
+
+# ---------------------------------------------------------------------------
+# Health
 # ---------------------------------------------------------------------------
 @app.get("/health")
 async def health():
     return {"status": "ok"}
 
 
+# ---------------------------------------------------------------------------
+# Protected routes
+# ---------------------------------------------------------------------------
 @app.post("/analyze")
-async def analyze(file: UploadFile = File(...)):
-    """
-    Accepts a JPEG image, runs Gemini vision analysis and Ollama coaching.
-    Stores the result as an Incident if a hazard is detected.
-    Broadcasts the incident over WebSocket.
-    """
+async def analyze(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image.")
 
     jpeg_bytes = await file.read()
 
-    # --- Gemini analysis (blocking — run in thread pool) -----------------
     loop = asyncio.get_event_loop()
     try:
         analysis = await loop.run_in_executor(None, analyze_frame, jpeg_bytes)
     except Exception as exc:
-        logger.error("Gemini error: %s", exc)
-        raise HTTPException(status_code=502, detail=f"Gemini error: {exc}") from exc
+        logger.error("OpenAI error: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Analysis error: {exc}") from exc
 
     overall_risk = analysis.get("overall_risk", "low")
     incident = None
     if overall_risk in ("medium", "high"):
-        # --- Ollama coaching (blocking) -----------------------------------
         try:
             coach_msg = await loop.run_in_executor(None, generate_coaching, analysis)
         except Exception as exc:
@@ -134,7 +234,6 @@ async def analyze(file: UploadFile = File(...)):
         )
         store.add(incident)
 
-        # Broadcast to WebSocket clients
         await manager.broadcast(
             {
                 "event": "new_incident",
@@ -152,12 +251,18 @@ async def analyze(file: UploadFile = File(...)):
 
 
 @app.get("/incidents")
-async def get_incidents(limit: int = 50):
+async def get_incidents(
+    limit: int = 50,
+    current_user: dict = Depends(get_current_user),
+):
     return [i.to_dict() for i in store.all(limit=limit)]
 
 
 @app.post("/incidents/{incident_id}/resolve")
-async def resolve_incident(incident_id: str):
+async def resolve_incident(
+    incident_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     ok = store.resolve(incident_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Incident not found.")
@@ -166,13 +271,15 @@ async def resolve_incident(incident_id: str):
 
 
 @app.get("/stats")
-async def get_stats():
+async def get_stats(current_user: dict = Depends(get_current_user)):
     return store.stats()
 
 
 @app.post("/incidents/seed")
-async def seed_incident(body: dict):
-    """Dev-only endpoint used by seed_incidents.py to inject fake data."""
+async def seed_incident(
+    body: dict,
+    current_user: dict = Depends(get_current_user),
+):
     inc = Incident(
         timestamp=body.get("timestamp", __import__("time").time()),
         severity=body.get("severity", "low"),
@@ -187,16 +294,22 @@ async def seed_incident(body: dict):
 
 
 # ---------------------------------------------------------------------------
-# WebSocket endpoint
+# WebSocket — token passed as query param
 # ---------------------------------------------------------------------------
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(
+    websocket: WebSocket,
+    token: Optional[str] = Query(None),
+):
+    payload = decode_token(token) if token else None
+    if not payload:
+        await websocket.close(code=4001)
+        return
+
     await manager.connect(websocket)
     try:
-        # Send current stats on connect
         await websocket.send_json({"event": "connected", "stats": store.stats()})
         while True:
-            # Keep connection alive; clients can send pings
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)

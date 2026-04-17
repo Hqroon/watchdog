@@ -9,6 +9,8 @@ export default defineConfig({
       "/analyze": "http://localhost:8000",
       "/incidents": "http://localhost:8000",
       "/stats": "http://localhost:8000",
+      "/auth": "http://localhost:8000",
+      "/health": "http://localhost:8000",
       "/ws": {
         target: "ws://localhost:8000",
         ws: true,

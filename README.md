@@ -7,11 +7,12 @@ WatchDog uses your laptop webcam, **OpenAI GPT-4o** for AI vision analysis, and 
 ## Features
 
 - **Live webcam monitoring** — captures frames every 4 seconds
-- **GPT-4o vision analysis** — detects PPE violations, posture issues, proximity hazards, housekeeping problems
+- **GPT-4o vision analysis** — detects posture issues, proximity hazards, housekeeping problems
 - **Ollama-powered coaching** — generates friendly, actionable coaching messages locally (no data leaves your machine)
 - **Real-time WebSocket alerts** — instant push to all connected clients
 - **Supervisor Dashboard** — charts by severity, category, and hour-of-day
 - **Incident management** — filter, review, and resolve incidents
+- **Authentication** — local email/password login and Microsoft Azure AD SSO
 
 ---
 
@@ -129,6 +130,35 @@ Webcam → CameraFeed (React)
                 ├─ IncidentStore (in-memory ring buffer)
                 └─ WebSocket broadcast → AlertPanel / SupervisorDashboard
 ```
+
+---
+
+## Authentication
+
+### Default admin account
+| Field | Value |
+|-------|-------|
+| Email | `admin@watchdog.local` |
+| Password | `Admin1234!` |
+
+**Change this password after first login in production.**
+
+### Local accounts
+Register via the login page — accounts are stored in a local SQLite database with bcrypt-hashed passwords.
+
+### Microsoft Azure AD (optional)
+Microsoft login is optional. The app works fully with local accounts if the Microsoft env vars are left blank.
+
+To enable it:
+1. Register an app in [Azure Portal](https://portal.azure.com) → Azure Active Directory → App registrations
+2. Add a redirect URI: `http://localhost:5173/auth/callback` (type: Single-page application)
+3. Under **Certificates & secrets**, create a new client secret
+4. Copy **Client ID**, **Client Secret**, and **Tenant ID** into `backend/.env`:
+   ```
+   MICROSOFT_CLIENT_ID=...
+   MICROSOFT_CLIENT_SECRET=...
+   MICROSOFT_TENANT_ID=...
+   ```
 
 ---
 
