@@ -133,16 +133,16 @@ async def analyze(file: UploadFile = File(...)):
             coach_message=coach_msg,
             frame_b64=base64.b64encode(jpeg_bytes).decode() if len(jpeg_bytes) < 500_000 else None,
         )
-        store.add(incident)
+        incident, is_new = store.add(incident)
 
-        # Broadcast to WebSocket clients
-        await manager.broadcast(
-            {
-                "event": "new_incident",
-                "incident": incident.to_dict(),
-                "coach": coach_msg,
-            }
-        )
+        if is_new:
+            await manager.broadcast(
+                {
+                    "event": "new_incident",
+                    "incident": incident.to_dict(),
+                    "coach": coach_msg,
+                }
+            )
 
     return JSONResponse(
         {
