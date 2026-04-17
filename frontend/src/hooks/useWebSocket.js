@@ -1,11 +1,19 @@
 import { useEffect, useRef } from "react";
 
+/**
+ * useWebSocket — auto-reconnecting WebSocket hook.
+ *
+ * @param {string} path        WebSocket path relative to window.location (e.g. "/ws")
+ * @param {function} onMessage Callback invoked with parsed JSON message
+ * @param {number} retryMs     Reconnect delay in ms (default 3000)
+ */
 export function useWebSocket(path, onMessage, retryMs = 3000) {
   const wsRef = useRef(null);
   const onMessageRef = useRef(onMessage);
   const retryTimeout = useRef(null);
   const unmounted = useRef(false);
 
+  // Keep callback ref up-to-date without reconnecting
   useEffect(() => {
     onMessageRef.current = onMessage;
   }, [onMessage]);
@@ -17,9 +25,7 @@ export function useWebSocket(path, onMessage, retryMs = 3000) {
       if (unmounted.current) return;
 
       const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-      const token = localStorage.getItem("watchdog_token");
-      const query = token ? `?token=${encodeURIComponent(token)}` : "";
-      const url = `${protocol}://${window.location.host}${path}${query}`;
+      const url = `${protocol}://${window.location.host}${path}`;
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
