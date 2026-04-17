@@ -27,14 +27,22 @@ COACHING_SYSTEM = (
 
 
 def _build_prompt(analysis: dict) -> str:
-    category = analysis.get("category", "general")
-    description = analysis.get("description", "")
-    recommendations = analysis.get("recommendations", [])
-    rec_text = "; ".join(recommendations) if recommendations else "follow standard procedures"
+    summary = analysis.get("frame_summary", "Safety issue detected.")
+    ppe = analysis.get("ppe_violations", [])
+    posture = analysis.get("posture_issues", [])
+    housekeeping = analysis.get("housekeeping_issues", [])
 
+    details = []
+    for v in ppe:
+        details.append(f"PPE violation: {v.get('description', v.get('item', ''))}")
+    for p in posture:
+        details.append(f"Posture issue: {p.get('description', p.get('issue', ''))}")
+    for h in housekeeping:
+        details.append(f"Housekeeping: {h.get('description', h.get('issue', ''))}")
+
+    detail_text = "; ".join(details) if details else "follow standard procedures"
     return (
-        f"A safety issue was detected in category '{category}': {description}. "
-        f"Recommended actions: {rec_text}. "
+        f"Scene: {summary}. Issues found: {detail_text}. "
         "Please write a short coaching message for the worker to correct this safely."
     )
 

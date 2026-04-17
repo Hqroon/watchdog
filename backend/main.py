@@ -107,8 +107,9 @@ async def analyze(file: UploadFile = File(...)):
         logger.error("Gemini error: %s", exc)
         raise HTTPException(status_code=502, detail=f"Gemini error: {exc}") from exc
 
+    overall_risk = analysis.get("overall_risk", "low")
     incident = None
-    if not analysis.get("safe", True):
+    if overall_risk in ("medium", "high"):
         # --- Ollama coaching (blocking) -----------------------------------
         try:
             coach_msg = await loop.run_in_executor(None, generate_coaching, analysis)
@@ -116,10 +117,21 @@ async def analyze(file: UploadFile = File(...)):
             logger.warning("Ollama error (non-fatal): %s", exc)
             coach_msg = "Safety issue detected. Please follow standard procedures."
 
+        ppe = analysis.get("ppe_violations", [])
+        posture = analysis.get("posture_issues", [])
+        if ppe:
+            category = "PPE"
+        elif posture:
+            category = "posture"
+        elif analysis.get("housekeeping_issues"):
+            category = "housekeeping"
+        else:
+            category = "hazard"
+
         incident = Incident(
-            severity=analysis.get("severity", "low"),
-            category=analysis.get("category", "unknown"),
-            description=analysis.get("description", ""),
+            severity=overall_risk,
+            category=category,
+            description=analysis.get("frame_summary", ""),
             coach_message=coach_msg,
             frame_b64=base64.b64encode(jpeg_bytes).decode() if len(jpeg_bytes) < 500_000 else None,
         )

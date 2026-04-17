@@ -8,12 +8,83 @@ import { getIncidents } from "./api/gemini.js";
 
 const TABS = ["Monitor", "Supervisor"];
 
+const DEMO_SCENARIOS = [
+  {
+    label: "No PPE",
+    overall_risk: "high",
+    frame_summary: "Operator at workstation missing safety glasses.",
+    ppe_violations: [{ item: "safety glasses", severity: "critical", description: "No eye protection on visible operator" }],
+    posture_issues: [],
+    housekeeping_issues: [],
+    detections: [
+      { category: "PERSON",      label: "operator",         confidence: 0.97, box: { x: 0.1,  y: 0.05, w: 0.35, h: 0.8  }, severity: "ok"       },
+      { category: "PPE_MISSING", label: "no safety glasses", confidence: 0.91, box: { x: 0.12, y: 0.06, w: 0.18, h: 0.22 }, severity: "critical" },
+    ],
+  },
+  {
+    label: "Posture",
+    overall_risk: "medium",
+    frame_summary: "Operator showing forward neck lean at workbench.",
+    ppe_violations: [],
+    posture_issues: [{ issue: "forward neck lean", severity: "warning", description: "Head angled forward sustained" }],
+    housekeeping_issues: [],
+    detections: [
+      { category: "PERSON", label: "operator leaning forward", confidence: 0.95, box: { x: 0.2, y: 0.1, w: 0.4, h: 0.75 }, severity: "warning" },
+    ],
+  },
+  {
+    label: "Housekeeping",
+    overall_risk: "medium",
+    frame_summary: "Loose cable and food/drink item present at workstation.",
+    ppe_violations: [],
+    posture_issues: [],
+    housekeeping_issues: [{ issue: "loose cable on floor", severity: "warning", description: "Trip hazard near station" }],
+    detections: [
+      { category: "WIRES_CABLES", label: "loose cable",  confidence: 0.88, box: { x: 0.05, y: 0.72, w: 0.45, h: 0.18 }, severity: "warning"  },
+      { category: "FOOD_DRINK",   label: "coffee cup",   confidence: 0.93, box: { x: 0.74, y: 0.28, w: 0.14, h: 0.22 }, severity: "critical" },
+      { category: "PERSON",       label: "operator",     confidence: 0.96, box: { x: 0.3,  y: 0.08, w: 0.35, h: 0.78 }, severity: "ok"       },
+    ],
+  },
+  {
+    label: "All Clear",
+    overall_risk: "low",
+    frame_summary: "Workstation clear. Operator equipped with PPE.",
+    ppe_violations: [],
+    posture_issues: [],
+    housekeeping_issues: [],
+    detections: [
+      { category: "PERSON",     label: "operator",      confidence: 0.96, box: { x: 0.3,  y: 0.1,  w: 0.35, h: 0.75 }, severity: "ok" },
+      { category: "PPE_WORN",   label: "safety glasses", confidence: 0.89, box: { x: 0.33, y: 0.12, w: 0.14, h: 0.1  }, severity: "ok" },
+      { category: "COMPONENTS", label: "PCB assembly",  confidence: 0.92, box: { x: 0.55, y: 0.4,  w: 0.3,  h: 0.25 }, severity: "ok" },
+    ],
+  },
+  {
+    label: "Multi Violation",
+    overall_risk: "high",
+    frame_summary: "Multiple critical violations: missing PPE, exposed wiring, and drink near components.",
+    ppe_violations: [{ item: "safety glasses", severity: "critical", description: "No eye protection on visible operator" }],
+    posture_issues: [],
+    housekeeping_issues: [
+      { issue: "exposed wiring",              severity: "critical", description: "Electrical hazard at workstation" },
+      { issue: "drink bottle near components", severity: "critical", description: "Liquid contamination risk" },
+    ],
+    detections: [
+      { category: "PERSON",       label: "operator",          confidence: 0.97, box: { x: 0.15, y: 0.05, w: 0.4,  h: 0.8  }, severity: "ok"       },
+      { category: "PPE_MISSING",  label: "no safety glasses", confidence: 0.94, box: { x: 0.17, y: 0.06, w: 0.17, h: 0.2  }, severity: "critical" },
+      { category: "WIRES_CABLES", label: "exposed wiring",    confidence: 0.85, box: { x: 0.6,  y: 0.6,  w: 0.3,  h: 0.25 }, severity: "critical" },
+      { category: "FOOD_DRINK",   label: "drink bottle",      confidence: 0.9,  box: { x: 0.7,  y: 0.2,  w: 0.1,  h: 0.25 }, severity: "critical" },
+    ],
+  },
+];
+
 export default function App() {
   const [tab, setTab]                 = useState("Monitor");
   const [latestAnalysis, setLatestAnalysis] = useState(null);
   const [incidents, setIncidents]     = useState([]);
   const [stats, setStats]             = useState({ total: 0, unresolved: 0, by_severity: { low: 0, medium: 0, high: 0 } });
   const [wsConnected, setWsConnected] = useState(false);
+  const [demoMode, setDemoMode]       = useState(false);
+  const [demoIndex, setDemoIndex]     = useState(0);
 
   // Load existing incidents on mount
   useEffect(() => {
@@ -107,7 +178,34 @@ export default function App() {
         {tab === "Monitor" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 flex flex-col gap-4">
-              <CameraFeed onAnalysis={setLatestAnalysis} />
+              {/* Demo controls */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setDemoMode(d => !d)}
+                  className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                    demoMode ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-gray-700 hover:bg-gray-600 text-gray-300"
+                  }`}
+                >
+                  {demoMode ? "Exit Demo" : "Demo Mode"}
+                </button>
+                {demoMode && DEMO_SCENARIOS.map((s, i) => (
+                  <button
+                    key={s.label}
+                    onClick={() => setDemoIndex(i)}
+                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                      demoIndex === i
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-800 hover:bg-gray-700 text-gray-400"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+              <CameraFeed
+                onAnalysis={setLatestAnalysis}
+                demoAnalysis={demoMode ? DEMO_SCENARIOS[demoIndex] : null}
+              />
               <CoachPanel analysis={latestAnalysis} />
             </div>
             <AlertPanel incidents={incidents} stats={stats} />
