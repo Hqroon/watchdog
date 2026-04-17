@@ -5,8 +5,10 @@ import CoachPanel from "./components/CoachPanel.jsx";
 import WorkerDashboard from "./components/WorkerDashboard.jsx";
 import { useWebSocket } from "./hooks/useWebSocket.js";
 import { getIncidents, getStats, resolveIncident } from "./api/gemini.js";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
-const TABS = ["Monitor", "Worker Dashboard"];
 const THEME_KEY = "lance-theme";
 
 const DEMO_SCENARIOS = [
@@ -67,19 +69,15 @@ const DEMO_SCENARIOS = [
     detections: [
       { category: "PERSON",       label: "operator",       confidence: 0.97, box: { x: 0.15, y: 0.05, w: 0.4,  h: 0.8  }, severity: "ok"       },
       { category: "WIRES_CABLES", label: "exposed wiring", confidence: 0.85, box: { x: 0.6,  y: 0.6,  w: 0.3,  h: 0.25 }, severity: "critical" },
-      { category: "FOOD_DRINK",   label: "drink bottle",      confidence: 0.9,  box: { x: 0.7,  y: 0.2,  w: 0.1,  h: 0.25 }, severity: "critical" },
+      { category: "FOOD_DRINK",   label: "drink bottle",   confidence: 0.9,  box: { x: 0.7,  y: 0.2,  w: 0.1,  h: 0.25 }, severity: "critical" },
     ],
   },
 ];
 
 export default function App() {
-  const [tab, setTab]                 = useState("Monitor");
+  const [tab, setTab]                 = useState("monitor");
   const [theme, setTheme]             = useState(() => {
-    try {
-      return localStorage.getItem(THEME_KEY) || "dark";
-    } catch {
-      return "dark";
-    }
+    try { return localStorage.getItem(THEME_KEY) || "dark"; } catch { return "dark"; }
   });
   const [latestAnalysis, setLatestAnalysis] = useState(null);
   const [incidents, setIncidents]     = useState([]);
@@ -95,79 +93,53 @@ export default function App() {
     setStats(statsData);
   }, []);
 
-  useEffect(() => {
-    refreshDashboard().catch(() => {});
-  }, [refreshDashboard]);
+  useEffect(() => { refreshDashboard().catch(() => {}); }, [refreshDashboard]);
 
   useEffect(() => {
-    if (!monitoringActive) {
-      return;
-    }
+    if (!monitoringActive) return;
     refreshDashboard().catch(() => {});
   }, [monitoringActive, refreshDashboard]);
 
   useEffect(() => {
     const root = document.documentElement;
-    root.classList.toggle("theme-light", theme === "light");
-    try {
-      localStorage.setItem(THEME_KEY, theme);
-    } catch {
-      // Ignore storage errors.
-    }
+    root.classList.toggle("dark", theme === "dark");
+    try { localStorage.setItem(THEME_KEY, theme); } catch {}
   }, [theme]);
 
   const handleWsMessage = useCallback((msg) => {
     if (msg.event === "connected") {
       setWsConnected(true);
-      if (monitoringActive && msg.stats) {
-        setStats(msg.stats);
-      }
+      if (monitoringActive && msg.stats) setStats(msg.stats);
     } else if (msg.event === "new_incident") {
-      if (!monitoringActive) {
-        return;
-      }
+      if (!monitoringActive) return;
       setIncidents((prev) => {
-        const existing = prev.find((incident) => incident.id === msg.incident.id);
-        if (existing) {
-          return prev.map((incident) => (incident.id === msg.incident.id ? msg.incident : incident));
-        }
+        const existing = prev.find((i) => i.id === msg.incident.id);
+        if (existing) return prev.map((i) => (i.id === msg.incident.id ? msg.incident : i));
         return [msg.incident, ...prev].slice(0, 100);
       });
-      if (msg.stats) {
-        setStats(msg.stats);
-      }
+      if (msg.stats) setStats(msg.stats);
       setLatestAnalysis({ incident: msg.incident, coach: msg.coach });
     } else if (msg.event === "incident_resolved") {
-      if (!monitoringActive) {
-        return;
-      }
+      if (!monitoringActive) return;
       setIncidents((prev) =>
-        prev.map((incident) => (incident.id === msg.incident_id ? { ...incident, resolved: true } : incident))
+        prev.map((i) => (i.id === msg.incident_id ? { ...i, resolved: true } : i))
       );
-      if (msg.stats) {
-        setStats(msg.stats);
-      }
+      if (msg.stats) setStats(msg.stats);
     }
   }, [monitoringActive]);
 
   const handleResolveIncident = useCallback(async (incidentId) => {
     const result = await resolveIncident(incidentId);
     if (result.incident) {
-      setIncidents((prev) =>
-        prev.map((incident) => (incident.id === incidentId ? result.incident : incident))
-      );
+      setIncidents((prev) => prev.map((i) => (i.id === incidentId ? result.incident : i)));
     }
-    if (result.stats) {
-      setStats(result.stats);
-    } else {
-      refreshDashboard().catch(() => {});
-    }
+    if (result.stats) setStats(result.stats);
+    else refreshDashboard().catch(() => {});
     return result;
   }, [refreshDashboard]);
 
   const wsRef = useWebSocket("/ws", handleWsMessage);
 
-  // Track WS disconnect
   useEffect(() => {
     const ws = wsRef.current;
     if (!ws) return;
@@ -177,87 +149,92 @@ export default function App() {
   }, [wsRef]);
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* ── Header ── */}
-      <header className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">🐕</span>
-          <h1 className="text-xl font-bold tracking-tight">Lance</h1>
-          <span className="text-xs text-gray-400 mt-0.5 hidden sm:block">Workstation Safety Monitor</span>
-        </div>
-
-        <div className="flex items-center gap-4">
-          {/* WS status dot */}
-          <div className="flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-gray-600 animate-pulse"}`} />
-            <span className="text-xs text-gray-400 hidden sm:block">
-              {wsConnected ? "Live" : "Connecting…"}
-            </span>
+      <header className="border-b border-border bg-background">
+        <div className="flex items-center justify-between h-14 px-4">
+          {/* Left: brand */}
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-lg font-semibold tracking-tight">Lance</span>
+            <span className="text-xs text-muted-foreground hidden sm:block">Workstation Safety Monitor</span>
           </div>
 
-          {/* Unresolved badge */}
-          {stats.unresolved > 0 && (
-            <span className="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">
-              {stats.unresolved} OPEN
-            </span>
-          )}
+          {/* Center: tabs */}
+          <Tabs value={tab} onValueChange={setTab} className="hidden sm:flex">
+            <TabsList>
+              <TabsTrigger value="monitor">Live Monitor</TabsTrigger>
+              <TabsTrigger value="dashboard">Worker Dashboard</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-          {/* Tab bar */}
-          <nav className="flex gap-1">
-            {TABS.map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                  tab === t
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-400 hover:text-white hover:bg-gray-800"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </nav>
+          {/* Right: status + demo + theme */}
+          <div className="flex items-center gap-2">
+            {/* WS status */}
+            <div className="flex items-center gap-1.5">
+              <span className={`h-2 w-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-muted-foreground animate-pulse"}`} />
+              <span className="text-xs text-muted-foreground hidden sm:block">
+                {wsConnected ? "Live" : "Connecting…"}
+              </span>
+            </div>
 
-          <button
-            onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
-            className="px-2.5 py-1.5 rounded text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-800"
-            title="Toggle light/dark theme"
-          >
-            {theme === "dark" ? "Light" : "Dark"}
-          </button>
+            {/* Unresolved badge */}
+            {stats.unresolved > 0 && (
+              <Badge variant="destructive" className="animate-pulse">
+                {stats.unresolved} OPEN
+              </Badge>
+            )}
+
+            {/* Demo toggle */}
+            <Button
+              variant={demoMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => setDemoMode(d => !d)}
+            >
+              {demoMode ? "Exit Demo" : "Demo"}
+            </Button>
+
+            {/* Theme toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setTheme(t => t === "dark" ? "light" : "dark")}
+            >
+              {theme === "dark" ? "Light" : "Dark"}
+            </Button>
+          </div>
+        </div>
+
+        {/* Mobile tabs */}
+        <div className="sm:hidden px-4 pb-2">
+          <Tabs value={tab} onValueChange={setTab}>
+            <TabsList className="w-full">
+              <TabsTrigger value="monitor" className="flex-1">Monitor</TabsTrigger>
+              <TabsTrigger value="dashboard" className="flex-1">Dashboard</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
       </header>
 
       {/* ── Content ── */}
       <main className="flex-1 p-4">
-        {tab === "Monitor" && (
+        {tab === "monitor" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 flex flex-col gap-4">
-              {/* Demo controls */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={() => setDemoMode(d => !d)}
-                  className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
-                    demoMode ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-gray-700 hover:bg-gray-600 text-gray-300"
-                  }`}
-                >
-                  {demoMode ? "Exit Demo" : "Demo Mode"}
-                </button>
-                {demoMode && DEMO_SCENARIOS.map((s, i) => (
-                  <button
-                    key={s.label}
-                    onClick={() => setDemoIndex(i)}
-                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                      demoIndex === i
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-800 hover:bg-gray-700 text-gray-400"
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
+              {/* Demo scenario buttons */}
+              {demoMode && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {DEMO_SCENARIOS.map((s, i) => (
+                    <Button
+                      key={s.label}
+                      variant={demoIndex === i ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setDemoIndex(i)}
+                    >
+                      {s.label}
+                    </Button>
+                  ))}
+                </div>
+              )}
               <CameraFeed
                 onAnalysis={setLatestAnalysis}
                 onMonitoringChange={setMonitoringActive}
@@ -268,7 +245,7 @@ export default function App() {
             <AlertPanel incidents={incidents} stats={stats} onResolveIncident={handleResolveIncident} />
           </div>
         )}
-        {tab === "Worker Dashboard" && (
+        {tab === "dashboard" && (
           <WorkerDashboard incidents={incidents} stats={stats} />
         )}
       </main>

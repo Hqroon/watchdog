@@ -1,6 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useCamera } from "../hooks/useCamera.js";
 import { analyzeFrame } from "../api/gemini.js";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 const INTERVAL_MS = 3000;
 
@@ -47,6 +51,18 @@ function hazardFromAnalysis(analysis) {
   return { severity: risk, category: cat, description: analysis.frame_summary ?? "" };
 }
 
+function RiskBadge({ risk }) {
+  if (!risk || risk === "low") return null;
+  if (risk === "high") {
+    return <Badge variant="destructive" className="uppercase">{risk}</Badge>;
+  }
+  return (
+    <Badge variant="outline" className="uppercase text-yellow-600 border-yellow-500">
+      {risk}
+    </Badge>
+  );
+}
+
 export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysis }) {
   const [status, setStatus]         = useState("idle");
   const [hazard, setHazard]         = useState(null);
@@ -61,7 +77,6 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
   const activeRef                   = useRef(false);
   const { videoRef, isActive, error, startCamera, stopCamera } = useCamera(INTERVAL_MS);
 
-  // Measure video area for box positioning
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -73,7 +88,6 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
     return () => obs.disconnect();
   }, []);
 
-  // Apply demo analysis
   useEffect(() => {
     if (!demoAnalysis) return;
     setDetections(demoAnalysis.detections ?? []);
@@ -93,30 +107,19 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
     setAnalyzing(true);
     try {
       const result = await analyzeFrame(dataUrl, controller.signal);
-      if (controller.signal.aborted || sessionId !== sessionRef.current || !activeRef.current) {
-        return;
-      }
+      if (controller.signal.aborted || sessionId !== sessionRef.current || !activeRef.current) return;
       const analysis = result.analysis ?? {};
       setDetections(analysis.detections ?? []);
       const h = hazardFromAnalysis(analysis);
       setHazard(h);
       setStatus(h ? "warning" : "safe");
       onAnalysis?.({ incident: result.incident ?? null, coach: result.coach ?? null });
-    } catch (error) {
-      if (error?.name === "AbortError") {
-        return;
-      }
-      if (sessionId !== sessionRef.current) {
-        return;
-      }
+    } catch (err) {
+      if (err?.name === "AbortError" || sessionId !== sessionRef.current) return;
       setStatus("error");
     } finally {
-      if (abortRef.current === controller) {
-        abortRef.current = null;
-      }
-      if (sessionId === sessionRef.current) {
-        setAnalyzing(false);
-      }
+      if (abortRef.current === controller) abortRef.current = null;
+      if (sessionId === sessionRef.current) setAnalyzing(false);
     }
   }, [onAnalysis]);
 
@@ -136,16 +139,19 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
     }
   };
 
-  const sev       = hazard?.severity ?? "low";
-  const styles    = SEV[sev] ?? SEV.low;
-  const showFeed  = isActive || !!demoAnalysis;
+  const sev    = hazard?.severity ?? "low";
+  const styles = SEV[sev] ?? SEV.low;
+  const showFeed = isActive || !!demoAnalysis;
   const activeDetections = demoAnalysis ? (demoAnalysis.detections ?? []) : detections;
 
   return (
-    <div className="bg-gray-900 rounded-xl overflow-hidden border border-gray-800 flex flex-col">
+    <div className="bg-card rounded-xl overflow-hidden border border-border flex flex-col">
       <div
         ref={containerRef}
-        className={`relative border-4 transition-colors duration-500 ${showFeed ? styles.border : "border-gray-700"}`}
+        className={cn(
+          "relative border-4 transition-colors duration-500",
+          showFeed ? styles.border : "border-border"
+        )}
       >
         <video
           ref={videoRef}
@@ -158,60 +164,63 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
         {!isActive && !demoAnalysis && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 gap-2">
             <span className="text-4xl">📷</span>
-            <p className="text-gray-400 text-sm">Camera is off</p>
+            <p className="text-muted-foreground text-sm">Camera is off</p>
           </div>
         )}
 
         {/* Demo placeholder */}
         {demoAnalysis && !isActive && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/70 gap-2">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 gap-2">
             <span className="text-4xl">🎬</span>
-            <p className="text-gray-300 text-sm font-medium">Demo Mode</p>
-            <p className="text-gray-500 text-xs text-center px-4">{demoAnalysis.frame_summary}</p>
+            <p className="text-foreground text-sm font-medium">Demo Mode</p>
+            <p className="text-muted-foreground text-xs text-center px-4">{demoAnalysis.frame_summary}</p>
           </div>
         )}
 
         {/* LIVE indicator */}
         {isActive && (
-          <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/60 rounded px-2 py-1 z-10">
-            <span className={`h-2 w-2 rounded-full ${analyzing ? "bg-yellow-400 animate-pulse" : "bg-red-500 animate-ping"}`} />
-            <span className="text-xs font-bold text-white tracking-widest">
+          <div className="absolute top-2 left-2 z-10">
+            <Badge variant="outline" className="bg-black/60 border-border text-white gap-1.5">
+              <span className={cn(
+                "h-2 w-2 rounded-full",
+                analyzing ? "bg-yellow-400 animate-pulse" : "bg-red-500 animate-ping"
+              )} />
               {analyzing ? "ANALYZING" : "LIVE"}
-            </span>
+            </Badge>
           </div>
         )}
 
         {/* Bounding boxes */}
         {showFeed && vidW > 0 && activeDetections.map((det, i) => {
-          const color  = boxColor(det);
-          const pulse  = PULSE_CATS.has(det.category);
+          const color = boxColor(det);
+          const pulse = PULSE_CATS.has(det.category);
           return (
             <div
               key={i}
               style={{
-                position:     "absolute",
-                left:         det.box.x * vidW + "px",
-                top:          det.box.y * vidH + "px",
-                width:        det.box.w * vidW + "px",
-                height:       det.box.h * vidH + "px",
-                border:       `2px solid ${color}`,
-                borderRadius: "3px",
+                position:      "absolute",
+                left:          det.box.x * vidW + "px",
+                top:           det.box.y * vidH + "px",
+                width:         det.box.w * vidW + "px",
+                height:        det.box.h * vidH + "px",
+                border:        `2px solid ${color}`,
+                borderRadius:  "3px",
                 pointerEvents: "none",
-                animation:    pulse ? "borderPulse 1s ease-in-out infinite" : "none",
-                zIndex:       5,
+                animation:     pulse ? "borderPulse 1s ease-in-out infinite" : "none",
+                zIndex:        5,
               }}
             >
               <span style={{
-                position:     "absolute",
-                top:          0,
-                left:         0,
-                background:   "rgba(0,0,0,0.65)",
-                color:        "#fff",
-                fontSize:     "11px",
-                padding:      "1px 5px",
-                borderRadius: "3px",
-                whiteSpace:   "nowrap",
-                lineHeight:   "1.4",
+                position:    "absolute",
+                top:         0,
+                left:        0,
+                background:  "rgba(0,0,0,0.65)",
+                color:       "#fff",
+                fontSize:    "11px",
+                padding:     "1px 5px",
+                borderRadius:"3px",
+                whiteSpace:  "nowrap",
+                lineHeight:  "1.4",
               }}>
                 {det.label} {Math.round(det.confidence * 100)}%
               </span>
@@ -221,13 +230,14 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
 
         {/* Hazard bar */}
         {showFeed && hazard && (
-          <div className={`absolute bottom-0 left-0 right-0 bg-black/75 backdrop-blur-sm border-t-2 ${styles.border} px-4 py-3 z-10`}>
+          <div className={cn(
+            "absolute bottom-0 left-0 right-0 bg-black/75 backdrop-blur-sm border-t-2 px-4 py-3 z-10",
+            styles.border
+          )}>
             <div className="flex items-start gap-3">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${styles.badge} text-white`}>
-                    {hazard.severity}
-                  </span>
+                  <RiskBadge risk={hazard.severity} />
                   <span className="text-xs text-gray-300 capitalize font-medium">
                     {hazard.category?.replace("_", " ")}
                   </span>
@@ -240,48 +250,49 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
 
         {/* Safe indicator */}
         {showFeed && status === "safe" && !hazard && (
-          <div className="absolute bottom-2 left-2 right-2 flex items-center gap-2 bg-green-900/70 border border-green-600 rounded-lg px-3 py-1.5 z-10">
-            <span className="text-green-400 text-sm">✅</span>
-            <span className="text-xs text-green-300 font-medium">Workstation is safe</span>
+          <div className="absolute bottom-2 left-2 right-2 z-10">
+            <Badge variant="outline" className="w-full justify-center bg-green-900/70 border-green-600 text-green-300">
+              Workstation is safe
+            </Badge>
           </div>
         )}
 
         {/* Error */}
         {status === "error" && (
-          <div className="absolute bottom-2 left-2 bg-red-900/80 border border-red-600 rounded px-3 py-1.5 z-10">
-            <p className="text-xs text-red-300">Analysis failed — retrying…</p>
+          <div className="absolute bottom-2 left-2 z-10">
+            <Badge variant="destructive">Analysis failed — retrying…</Badge>
           </div>
         )}
 
         {/* Legend */}
         <div className="absolute bottom-2 right-2 z-20">
-          <div className="bg-gray-900/90 border border-gray-700 rounded-lg overflow-hidden" style={{ maxWidth: "160px" }}>
+          <Card className="shadow-none overflow-hidden" style={{ maxWidth: "160px" }}>
             <button
-              className="w-full px-2 py-1 text-xs text-gray-300 flex items-center justify-between gap-1 hover:bg-gray-800"
+              className="w-full px-2 py-1 text-xs text-muted-foreground flex items-center justify-between gap-1 hover:bg-muted"
               onClick={() => setLegendOpen(o => !o)}
             >
               <span>Legend</span>
               <span>{legendOpen ? "▲" : "▼"}</span>
             </button>
             {legendOpen && (
-              <div className="px-2 pb-2 flex flex-col gap-0.5">
+              <CardContent className="px-2 pb-2 pt-0 flex flex-col gap-0.5">
                 {LEGEND_ITEMS.map(({ color, label }) => (
                   <div key={label} className="flex items-center gap-1.5">
                     <span style={{ width: 10, height: 10, borderRadius: 2, background: color, flexShrink: 0, display: "inline-block" }} />
-                    <span style={{ fontSize: 10, color: "#d1d5db" }}>{label}</span>
+                    <span className="text-xs text-muted-foreground">{label}</span>
                   </div>
                 ))}
-              </div>
+              </CardContent>
             )}
-          </div>
+          </Card>
         </div>
       </div>
 
       {/* Controls bar */}
       <div className="flex items-center justify-between px-4 py-3">
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-muted-foreground">
           {error ? (
-            <span className="text-red-400">{error}</span>
+            <span className="text-destructive">{error}</span>
           ) : isActive ? (
             `Scanning every ${INTERVAL_MS / 1000}s`
           ) : demoAnalysis ? (
@@ -291,16 +302,13 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
           )}
         </p>
         {!demoAnalysis && (
-          <button
+          <Button
             onClick={toggle}
-            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
-              isActive
-                ? "bg-red-600 hover:bg-red-700 text-white"
-                : "bg-blue-600 hover:bg-blue-700 text-white"
-            }`}
+            variant={isActive ? "destructive" : "default"}
+            size="sm"
           >
             {isActive ? "Stop" : "Start Monitoring"}
-          </button>
+          </Button>
         )}
       </div>
     </div>

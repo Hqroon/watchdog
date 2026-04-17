@@ -1,7 +1,17 @@
-const SEVERITY_STYLES = {
-  low: { bg: "bg-green-950 border-green-700", icon: "✅", label: "Low Risk", text: "text-green-300" },
-  medium: { bg: "bg-yellow-950 border-yellow-600", icon: "⚠️", label: "Medium Risk", text: "text-yellow-300" },
-  high: { bg: "bg-red-950 border-red-600", icon: "🚨", label: "High Risk", text: "text-red-300" },
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+
+const SEV_BORDER = {
+  low:    "border-l-green-500",
+  medium: "border-l-yellow-500",
+  high:   "border-l-destructive",
+};
+
+const SEV_LABEL = {
+  low:    "Low Risk",
+  medium: "Medium Risk",
+  high:   "High Risk",
 };
 
 export default function CoachPanel({ analysis }) {
@@ -9,33 +19,50 @@ export default function CoachPanel({ analysis }) {
 
   const { incident, coach } = analysis;
   const severity = incident?.severity ?? "low";
-  const style = SEVERITY_STYLES[severity] ?? SEVERITY_STYLES.low;
 
   if (incident?.safe || !incident) {
     return (
-      <div className="bg-green-950 border border-green-700 rounded-xl px-4 py-3 flex items-center gap-3">
-        <span className="text-xl">✅</span>
-        <p className="text-green-300 text-sm font-medium">No hazards detected — workstation is safe.</p>
-      </div>
+      <Card className={cn("border-l-4 border-l-green-500 shadow-none")}>
+        <CardContent className="py-3 px-4 flex items-center gap-3">
+          <span className="text-green-600 text-sm font-medium">
+            No hazards detected — workstation is safe.
+          </span>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className={`${style.bg} border rounded-xl px-4 py-4`}>
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-lg">{style.icon}</span>
-        <span className={`font-bold text-sm ${style.text}`}>{style.label}</span>
-        <span className="ml-auto text-xs text-gray-400 capitalize">{incident.category}</span>
-      </div>
-
-      <p className="text-sm text-gray-200 mb-3">{incident.description}</p>
-
-      {coach && (
-        <div className="bg-black/30 rounded-lg px-3 py-2">
-          <p className="text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Coach</p>
-          <p className="text-sm text-white leading-relaxed">{coach}</p>
+    <Card className={cn("border-l-4 shadow-none", SEV_BORDER[severity] ?? SEV_BORDER.low)}>
+      <CardHeader className="pb-2 pt-3 px-4">
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-sm font-medium">
+            {SEV_LABEL[severity] ?? SEV_LABEL.low}
+          </CardTitle>
+          <Badge variant="outline" className="text-xs text-muted-foreground ml-auto">
+            {incident.category}
+          </Badge>
         </div>
-      )}
-    </div>
+      </CardHeader>
+      <CardContent className="px-4 pb-3 space-y-3">
+        <p className="text-sm text-foreground">{incident.description}</p>
+
+        {coach ? (
+          <div className="bg-muted rounded-lg px-3 py-2 space-y-1">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Coach</p>
+              <Badge variant="outline" className="text-xs ml-auto">Local · Ollama</Badge>
+            </div>
+            <p className="text-sm text-foreground leading-relaxed">{coach}</p>
+          </div>
+        ) : (
+          <div className="bg-muted rounded-lg px-3 py-2 space-y-2 animate-pulse">
+            <div className="h-3 bg-muted-foreground/20 rounded w-1/4" />
+            <div className="h-4 bg-muted-foreground/20 rounded w-3/4" />
+            <div className="h-4 bg-muted-foreground/20 rounded w-1/2" />
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
