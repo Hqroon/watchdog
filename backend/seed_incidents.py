@@ -1,5 +1,5 @@
 """
-Seed the running WatchDog backend with 20 fake incidents for UI testing.
+Seed the running Lance backend with 20 fake incidents for UI testing.
 Run while the backend is up:  python seed_incidents.py
 """
 import time

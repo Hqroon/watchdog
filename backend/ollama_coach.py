@@ -1,5 +1,5 @@
 """
-Ollama coaching module for WatchDog.
+Ollama coaching module for Lance.
 
 Calls a local Ollama instance to generate a friendly,
 actionable coaching message based on the Gemini safety analysis.
@@ -105,7 +105,7 @@ def generate_coaching(analysis: dict) -> str:
     except httpx.ConnectError:
         return (
             "Safety issue detected. Please review the recommendation and follow "
-            "standard operating procedures. Contact your supervisor if unsure."
+            "standard operating procedures. Seek support if you are unsure."
         )
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == 404:

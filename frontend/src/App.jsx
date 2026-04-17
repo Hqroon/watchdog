@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 import CameraFeed from "./components/CameraFeed.jsx";
 import AlertPanel from "./components/AlertPanel.jsx";
 import CoachPanel from "./components/CoachPanel.jsx";
-import SupervisorDashboard from "./components/SupervisorDashboard.jsx";
+import WorkerDashboard from "./components/WorkerDashboard.jsx";
 import { useWebSocket } from "./hooks/useWebSocket.js";
-import { getIncidents } from "./api/gemini.js";
+import { getIncidents, getStats, resolveIncident } from "./api/gemini.js";
 
-const TABS = ["Monitor", "Supervisor"];
+const TABS = ["Monitor", "Worker Dashboard"];
+const THEME_KEY = "lance-theme";
 
 const DEMO_SCENARIOS = [
   {
@@ -73,43 +74,96 @@ const DEMO_SCENARIOS = [
 
 export default function App() {
   const [tab, setTab]                 = useState("Monitor");
+  const [theme, setTheme]             = useState(() => {
+    try {
+      return localStorage.getItem(THEME_KEY) || "dark";
+    } catch {
+      return "dark";
+    }
+  });
   const [latestAnalysis, setLatestAnalysis] = useState(null);
   const [incidents, setIncidents]     = useState([]);
   const [stats, setStats]             = useState({ total: 0, unresolved: 0, by_severity: { low: 0, medium: 0, high: 0 } });
   const [wsConnected, setWsConnected] = useState(false);
+  const [monitoringActive, setMonitoringActive] = useState(false);
   const [demoMode, setDemoMode]       = useState(false);
   const [demoIndex, setDemoIndex]     = useState(0);
 
-  // Load existing incidents on mount
-  useEffect(() => {
-    getIncidents(100)
-      .then(setIncidents)
-      .catch(() => {});
+  const refreshDashboard = useCallback(async () => {
+    const [incidentData, statsData] = await Promise.all([getIncidents(100), getStats()]);
+    setIncidents(incidentData);
+    setStats(statsData);
   }, []);
+
+  useEffect(() => {
+    refreshDashboard().catch(() => {});
+  }, [refreshDashboard]);
+
+  useEffect(() => {
+    if (!monitoringActive) {
+      return;
+    }
+    refreshDashboard().catch(() => {});
+  }, [monitoringActive, refreshDashboard]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("theme-light", theme === "light");
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      // Ignore storage errors.
+    }
+  }, [theme]);
 
   const handleWsMessage = useCallback((msg) => {
     if (msg.event === "connected") {
       setWsConnected(true);
-      setStats(msg.stats);
+      if (monitoringActive && msg.stats) {
+        setStats(msg.stats);
+      }
     } else if (msg.event === "new_incident") {
-      setIncidents((prev) => [msg.incident, ...prev].slice(0, 100));
-      setStats((prev) => ({
-        ...prev,
-        total: prev.total + 1,
-        unresolved: prev.unresolved + 1,
-        by_severity: {
-          ...prev.by_severity,
-          [msg.incident.severity]: (prev.by_severity[msg.incident.severity] || 0) + 1,
-        },
-      }));
+      if (!monitoringActive) {
+        return;
+      }
+      setIncidents((prev) => {
+        const existing = prev.find((incident) => incident.id === msg.incident.id);
+        if (existing) {
+          return prev.map((incident) => (incident.id === msg.incident.id ? msg.incident : incident));
+        }
+        return [msg.incident, ...prev].slice(0, 100);
+      });
+      if (msg.stats) {
+        setStats(msg.stats);
+      }
       setLatestAnalysis({ incident: msg.incident, coach: msg.coach });
     } else if (msg.event === "incident_resolved") {
+      if (!monitoringActive) {
+        return;
+      }
       setIncidents((prev) =>
-        prev.map((i) => (i.id === msg.incident_id ? { ...i, resolved: true } : i))
+        prev.map((incident) => (incident.id === msg.incident_id ? { ...incident, resolved: true } : incident))
       );
-      setStats((prev) => ({ ...prev, unresolved: Math.max(0, prev.unresolved - 1) }));
+      if (msg.stats) {
+        setStats(msg.stats);
+      }
     }
-  }, []);
+  }, [monitoringActive]);
+
+  const handleResolveIncident = useCallback(async (incidentId) => {
+    const result = await resolveIncident(incidentId);
+    if (result.incident) {
+      setIncidents((prev) =>
+        prev.map((incident) => (incident.id === incidentId ? result.incident : incident))
+      );
+    }
+    if (result.stats) {
+      setStats(result.stats);
+    } else {
+      refreshDashboard().catch(() => {});
+    }
+    return result;
+  }, [refreshDashboard]);
 
   const wsRef = useWebSocket("/ws", handleWsMessage);
 
@@ -128,7 +182,7 @@ export default function App() {
       <header className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-2xl">🐕</span>
-          <h1 className="text-xl font-bold tracking-tight">WatchDog</h1>
+          <h1 className="text-xl font-bold tracking-tight">Lance</h1>
           <span className="text-xs text-gray-400 mt-0.5 hidden sm:block">Workstation Safety Monitor</span>
         </div>
 
@@ -164,6 +218,14 @@ export default function App() {
               </button>
             ))}
           </nav>
+
+          <button
+            onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
+            className="px-2.5 py-1.5 rounded text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-800"
+            title="Toggle light/dark theme"
+          >
+            {theme === "dark" ? "Light" : "Dark"}
+          </button>
         </div>
       </header>
 
@@ -198,15 +260,16 @@ export default function App() {
               </div>
               <CameraFeed
                 onAnalysis={setLatestAnalysis}
+                onMonitoringChange={setMonitoringActive}
                 demoAnalysis={demoMode ? DEMO_SCENARIOS[demoIndex] : null}
               />
               <CoachPanel analysis={latestAnalysis} />
             </div>
-            <AlertPanel incidents={incidents} stats={stats} />
+            <AlertPanel incidents={incidents} stats={stats} onResolveIncident={handleResolveIncident} />
           </div>
         )}
-        {tab === "Supervisor" && (
-          <SupervisorDashboard incidents={incidents} stats={stats} />
+        {tab === "Worker Dashboard" && (
+          <WorkerDashboard incidents={incidents} stats={stats} />
         )}
       </main>
     </div>
