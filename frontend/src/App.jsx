@@ -286,15 +286,15 @@ export default function App() {
       {/* ── Header ── */}
       <header className="border-b border-border bg-background">
         <div className="flex items-center justify-between h-14 px-4">
-          <div className="flex items-center gap-2 shrink-0">
-          <img
-            src={lanceLogo}
-            alt="Lance logo"
+          <a href="/landing.html" className="flex items-center gap-2 shrink-0 no-underline hover:opacity-80 transition-opacity">
+            <img
+              src={lanceLogo}
+              alt="Lance logo"
               className="h-8 w-8 rounded-full object-cover ring-1 ring-border"
-          />
-            <span className="text-lg font-semibold tracking-tight">Lance</span>
+            />
+            <span className="text-lg font-semibold tracking-tight text-foreground">Lance</span>
             <span className="text-xs text-muted-foreground hidden sm:block">Personal Wellness Monitor</span>
-          </div>
+          </a>
 
           <Tabs value={tab} onValueChange={setTab} className="hidden sm:flex">
             <TabsList>
