@@ -14,14 +14,13 @@
     }
 
     html {
-      scroll-behavior: auto;
-      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
       scroll-padding-top: var(--nav-height);
     }
 
     body {
       margin: 0;
-      background: #ffffff;
+      background: #151115;
       overscroll-behavior-y: none;
       padding-top: var(--nav-height);
     }
@@ -215,8 +214,6 @@
     .lsec-wrap { max-width: 1200px; margin: 0 auto; }
 
     .lsnap {
-      scroll-snap-align: start;
-      scroll-snap-stop: always;
       min-height: calc(100svh - var(--nav-height));
       display: flex;
       align-items: center;
@@ -225,8 +222,6 @@
     }
     .lsnap > * { width: 100%; }
     .parallax-shift {
-      transform: translate3d(0, var(--parallax-offset, 0px), 0);
-      transition: transform .06s linear;
       will-change: transform;
     }
     .lsnap-alt { background: #F7F8FC; }
@@ -245,7 +240,6 @@
     }
 
     @media (max-width: 980px) {
-      html { scroll-snap-type: none; }
       body { padding-top: var(--nav-height); }
       .lsnap {
         min-height: auto;
@@ -547,8 +541,8 @@
 
   <script>
     (() => {
-      const navAnchors = document.querySelectorAll('.lnav a[href^="#"], .lfooter a[href^="#"]');
-      navAnchors.forEach((anchor) => {
+      // Smooth nav anchor scrolling
+      document.querySelectorAll('.lnav a[href^="#"], .lfooter a[href^="#"]').forEach((anchor) => {
         anchor.addEventListener('click', (event) => {
           const targetId = anchor.getAttribute('href');
           if (!targetId || targetId === '#') return;
@@ -561,36 +555,45 @@
 
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-      const sections = document.querySelectorAll('.parallax-section');
-      const parallaxBoost = 1.9;
-      const updateParallax = () => {
-        const viewportMid = window.scrollY + (window.innerHeight / 2);
-        sections.forEach((section) => {
-          const layer = section.querySelector('.parallax-shift');
-          if (!layer) return;
-          const rect = section.getBoundingClientRect();
-          if (rect.height > window.innerHeight * 0.98) {
-            layer.style.setProperty('--parallax-offset', '0px');
-            return;
-          }
-          const sectionMid = window.scrollY + rect.top + (rect.height / 2);
-          const depth = Number(section.dataset.depth || 0.1);
-          const rawOffset = (viewportMid - sectionMid) * depth * parallaxBoost;
-          const clampedOffset = Math.max(-58, Math.min(58, rawOffset));
-          layer.style.setProperty('--parallax-offset', `${clampedOffset}px`);
-        });
+      const sections = Array.from(document.querySelectorAll('.parallax-section'));
+      const lerp = (a, b, t) => a + (b - a) * t;
+      const LERP_FACTOR = 0.07;
+      const BOOST = 1.9;
+      const CLAMP = 58;
+
+      // Per-section state: { current, target }
+      const state = new Map(sections.map(s => [s, { current: 0, target: 0 }]));
+
+      const computeTarget = (section) => {
+        const rect = section.getBoundingClientRect();
+        if (rect.height > window.innerHeight * 0.98) return 0;
+        const sectionMid = window.scrollY + rect.top + rect.height / 2;
+        const viewportMid = window.scrollY + window.innerHeight / 2;
+        const depth = Number(section.dataset.depth || 0.1);
+        const raw = (viewportMid - sectionMid) * depth * BOOST;
+        return Math.max(-CLAMP, Math.min(CLAMP, raw));
       };
 
-      let ticking = false;
-      window.addEventListener('scroll', () => {
-        if (!ticking) {
-          window.requestAnimationFrame(() => { updateParallax(); ticking = false; });
-          ticking = true;
-        }
-      }, { passive: true });
+      let rafId = null;
 
-      window.addEventListener('resize', updateParallax);
-      updateParallax();
+      const tick = () => {
+        let needsMore = false;
+        sections.forEach(section => {
+          const s = state.get(section);
+          s.target = computeTarget(section);
+          s.current = lerp(s.current, s.target, LERP_FACTOR);
+          const layer = section.querySelector('.parallax-shift');
+          if (layer) layer.style.transform = `translate3d(0, ${s.current.toFixed(3)}px, 0)`;
+          if (Math.abs(s.current - s.target) > 0.05) needsMore = true;
+        });
+        rafId = needsMore ? requestAnimationFrame(tick) : null;
+      };
+
+      const schedule = () => { if (!rafId) rafId = requestAnimationFrame(tick); };
+
+      window.addEventListener('scroll', schedule, { passive: true });
+      window.addEventListener('resize', schedule);
+      schedule();
     })();
   </script>
 
