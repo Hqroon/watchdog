@@ -86,7 +86,8 @@ export default function CameraFeed({ onAnalysis, demoAnalysis }) {
       const h = hazardFromAnalysis(analysis);
       setHazard(h);
       setStatus(h ? "warning" : "safe");
-      onAnalysis?.(result);
+      // Pass data in the shape CoachPanel expects: { incident, coach }
+      onAnalysis?.({ incident: result.incident ?? null, coach: result.coach ?? null });
     } catch {
       setStatus("error");
     } finally {

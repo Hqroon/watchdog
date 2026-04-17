@@ -22,6 +22,7 @@ TIMEOUT = 30.0  # seconds
 COACHING_SYSTEM = (
     "You are a friendly, encouraging workplace safety coach. "
     "Your tone is supportive — never accusatory. "
+    "Reply ONLY with the coaching message itself — no preamble, no intro like 'Sure' or 'Here is', no labels. "
     "Keep responses to 2-3 sentences maximum."
 )
 
@@ -73,7 +74,13 @@ def generate_coaching(analysis: dict) -> str:
             )
             response.raise_for_status()
             data = response.json()
-            return data["message"]["content"].strip()
+            text = data["message"]["content"].strip()
+            # Strip common LLM preambles e.g. "Sure, here's a message:", "Here is:"
+            import re
+            text = re.sub(r'^(sure[,.]?\s*)?(here[\s\w]*?:|okay[,.]?\s*)', '', text, flags=re.IGNORECASE).strip()
+            # Strip leading quotes if the model wrapped the message
+            text = text.strip('"').strip("'")
+            return text
     except httpx.ConnectError:
         return (
             "Safety issue detected. Please review the recommendation and follow "
