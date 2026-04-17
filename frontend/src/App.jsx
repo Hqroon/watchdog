@@ -3,6 +3,7 @@ import CameraFeed from "./components/CameraFeed.jsx";
 import AlertPanel from "./components/AlertPanel.jsx";
 import CoachPanel from "./components/CoachPanel.jsx";
 import WorkerDashboard from "./components/WorkerDashboard.jsx";
+import lanceLogo from "./assets/lance-logo.png";
 import { useWebSocket } from "./hooks/useWebSocket.js";
 import { getIncidents, getStats, resolveIncident } from "./api/gemini.js";
 import { Button } from "@/components/ui/button";
@@ -106,6 +107,17 @@ export default function App() {
     try { localStorage.setItem(THEME_KEY, theme); } catch {}
   }, [theme]);
 
+  useEffect(() => {
+    let favicon = document.querySelector("link[rel='icon']");
+    if (!favicon) {
+      favicon = document.createElement("link");
+      favicon.setAttribute("rel", "icon");
+      document.head.appendChild(favicon);
+    }
+    favicon.setAttribute("type", "image/png");
+    favicon.setAttribute("href", lanceLogo);
+  }, []);
+
   const handleWsMessage = useCallback((msg) => {
     if (msg.event === "connected") {
       setWsConnected(true);
@@ -155,6 +167,11 @@ export default function App() {
         <div className="flex items-center justify-between h-14 px-4">
           {/* Left: brand */}
           <div className="flex items-center gap-2 shrink-0">
+          <img
+            src={lanceLogo}
+            alt="Lance logo"
+              className="h-8 w-8 rounded-full object-cover ring-1 ring-border"
+          />
             <span className="text-lg font-semibold tracking-tight">Lance</span>
             <span className="text-xs text-muted-foreground hidden sm:block">Workstation Safety Monitor</span>
           </div>
