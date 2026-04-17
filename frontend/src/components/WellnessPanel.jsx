@@ -11,6 +11,7 @@ const ALERT_CATEGORY_COLOR = {
   OVERWORK:      "border-l-amber-500",
   POSTURE:       "border-l-orange-500",
   COLLAPSE_RISK: "border-l-destructive",
+  EYE_HEALTH:    "border-l-teal-500",
 };
 
 const ALERT_BADGE_COLOR = {
@@ -19,6 +20,7 @@ const ALERT_BADGE_COLOR = {
   OVERWORK:      "text-amber-600 border-amber-500",
   POSTURE:       "text-orange-600 border-orange-500",
   COLLAPSE_RISK: "text-destructive border-destructive",
+  EYE_HEALTH:    "border-[#1D9E75]",
 };
 
 function postureColor(score) {
@@ -45,6 +47,20 @@ function eyeColor(sev) {
   return { none: "text-green-600", mild: "text-yellow-600", severe: "text-destructive" }[sev] ?? "text-muted-foreground";
 }
 
+function proxColor(status) {
+  return { safe: "text-green-600", close: "text-amber-600", too_close: "text-destructive" }[status] ?? "text-muted-foreground";
+}
+
+function proxLabel(status) {
+  return { safe: "Good", close: "A bit close", too_close: "Too close" }[status] ?? "Unknown";
+}
+
+function opennessColor(pct) {
+  if (pct >= 80) return "text-green-600";
+  if (pct >= 50) return "text-amber-600";
+  return "text-destructive";
+}
+
 function formatDuration(minutes) {
   const h = Math.floor(minutes / 60);
   const m = Math.round(minutes % 60);
@@ -54,11 +70,13 @@ function formatDuration(minutes) {
 export default function WellnessPanel({ analysis, timeAlerts = [], sessionStats = {} }) {
   const [statsOpen, setStatsOpen] = useState(false);
 
-  const posture     = analysis?.posture      ?? { score: 0, status: "good", issues: [], description: "" };
-  const eyeStrain   = analysis?.eye_strain   ?? { detected: false, severity: "none", description: "" };
-  const hydration   = analysis?.hydration    ?? { water_visible: false, container_type: "none" };
-  const focus       = analysis?.focus_state  ?? { state: "away", confidence: 0 };
-  const wellness    = analysis?.overall_wellness ?? "good";
+  const posture      = analysis?.posture           ?? { score: 0, status: "good", issues: [], description: "" };
+  const eyeStrain    = analysis?.eye_strain        ?? { detected: false, severity: "none", description: "" };
+  const hydration    = analysis?.hydration         ?? { water_visible: false, container_type: "none" };
+  const focus        = analysis?.focus_state       ?? { state: "away", confidence: 0 };
+  const wellness     = analysis?.overall_wellness  ?? "good";
+  const proximity    = analysis?.screen_proximity  ?? { status: "safe" };
+  const eyeOpenness  = analysis?.eye_openness      ?? { openness_percent: 80, sore_eyes_likely: false };
 
   return (
     <div className="flex flex-col gap-3 h-full">
@@ -130,6 +148,27 @@ export default function WellnessPanel({ analysis, timeAlerts = [], sessionStats 
             <p className="text-xs text-muted-foreground mb-0.5">Wellness</p>
             <p className={cn("text-sm font-medium capitalize", wellnessColor(wellness))}>
               {wellness}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-none">
+          <CardContent className="px-3 py-2">
+            <p className="text-xs text-muted-foreground mb-0.5">Screen Distance</p>
+            <p className={cn("text-sm font-medium", proxColor(proximity.status))}>
+              {proxLabel(proximity.status)}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-none">
+          <CardContent className="px-3 py-2">
+            <p className="text-xs text-muted-foreground mb-0.5">Eye Openness</p>
+            <p className={cn("text-sm font-medium", opennessColor(eyeOpenness.openness_percent ?? 80))}>
+              {eyeOpenness.openness_percent ?? 80}%
+              {eyeOpenness.sore_eyes_likely && (
+                <span className="text-destructive text-xs ml-1">Sore</span>
+              )}
             </p>
           </CardContent>
         </Card>

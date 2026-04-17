@@ -25,6 +25,8 @@ const DEMO_SCENARIOS = [
     hydration: { water_visible: true, container_type: "water bottle", description: "Water bottle visible on desk" },
     focus_state: { state: "focused", confidence: 0.92, description: "Alert and engaged" },
     environment: { lighting: "good", monitor_position: "good", issues: [] },
+    screen_proximity: { status: "safe", estimated_distance: "normal", face_fill_ratio: 0.25, description: "Good viewing distance maintained" },
+    eye_openness: { status: "normal", openness_percent: 90, sore_eyes_likely: false, description: "Eyes wide open and alert" },
     overall_wellness: "good",
     frame_summary: "Good posture, hydrated, focused",
     time_based_alerts: [],
@@ -38,9 +40,14 @@ const DEMO_SCENARIOS = [
     hydration: { water_visible: false, container_type: "none", description: "No water visible on desk" },
     focus_state: { state: "focused", confidence: 0.85, description: "Focused but tense posture" },
     environment: { lighting: "good", monitor_position: "too_low", issues: ["monitor too low causing neck strain"] },
+    screen_proximity: { status: "too_close", estimated_distance: "very_close", face_fill_ratio: 0.52, description: "Face too close to screen" },
+    eye_openness: { status: "partially_closed", openness_percent: 60, sore_eyes_likely: true, description: "Eyes partially closed from squinting at screen" },
     overall_wellness: "poor",
     frame_summary: "Poor posture with forward head, no water visible",
-    time_based_alerts: [{ type: "hydration", severity: "warning", message: "No water detected in the last 20 minutes — time to hydrate", category: "HYDRATION" }],
+    time_based_alerts: [
+      { type: "hydration", severity: "warning", message: "No water detected in the last 20 minutes — time to hydrate", category: "HYDRATION" },
+      { type: "screen_proximity", severity: "warning", message: "You are too close to the screen — move back at least 50-70cm for healthy viewing distance", category: "EYE_HEALTH" },
+    ],
     session_stats: { session_duration_minutes: 47, avg_posture_score: 45, time_since_water_minutes: 23, presence_ratio: 0.91 },
   },
   {
@@ -51,9 +58,14 @@ const DEMO_SCENARIOS = [
     hydration: { water_visible: true, container_type: "glass", description: "Glass of water visible" },
     focus_state: { state: "drowsy", confidence: 0.89, description: "Eyelids heavy, head nodding" },
     environment: { lighting: "poor", monitor_position: "good", issues: ["dim lighting may be contributing to drowsiness"] },
+    screen_proximity: { status: "safe", estimated_distance: "normal", face_fill_ratio: 0.30, description: "Viewing distance okay" },
+    eye_openness: { status: "squinting", openness_percent: 25, sore_eyes_likely: true, description: "Eyes nearly closed from drowsiness" },
     overall_wellness: "poor",
     frame_summary: "User appears drowsy with heavy eyelids",
-    time_based_alerts: [{ type: "drowsy", severity: "critical", message: "You appear to be falling asleep — stand up, splash water on your face, or take a short break", category: "COLLAPSE_RISK" }],
+    time_based_alerts: [
+      { type: "drowsy", severity: "critical", message: "You appear to be falling asleep — stand up, splash water on your face, or take a short break", category: "COLLAPSE_RISK" },
+      { type: "eye_critical", severity: "critical", message: "Your eyes are nearly closed — rest your eyes immediately, look away from all screens", category: "EYE_HEALTH" },
+    ],
     session_stats: { session_duration_minutes: 95, avg_posture_score: 61, time_since_water_minutes: 8, presence_ratio: 0.88 },
   },
   {
@@ -64,11 +76,14 @@ const DEMO_SCENARIOS = [
     hydration: { water_visible: true, container_type: "water bottle", description: "Water bottle present" },
     focus_state: { state: "focused", confidence: 0.78, description: "Still focused but signs of fatigue" },
     environment: { lighting: "good", monitor_position: "good", issues: [] },
+    screen_proximity: { status: "close", estimated_distance: "slightly_close", face_fill_ratio: 0.38, description: "Slightly close to screen" },
+    eye_openness: { status: "partially_closed", openness_percent: 55, sore_eyes_likely: true, description: "Eyes partially closed from fatigue" },
     overall_wellness: "fair",
     frame_summary: "Extended session showing fatigue signs",
     time_based_alerts: [
       { type: "overwork", severity: "warning", message: "You have been working for over 2.5 hours — consider taking a proper break", category: "OVERWORK" },
       { type: "stand_up", severity: "info", message: "You have been sitting for 45 minutes — stand up and stretch for 2 minutes", category: "MOVEMENT" },
+      { type: "eye_soreness", severity: "warning", message: "Your eyes appear sore or strained — try the 20-20-20 rule: look at something 20 feet away for 20 seconds", category: "EYE_HEALTH" },
     ],
     session_stats: { session_duration_minutes: 152, avg_posture_score: 68, time_since_water_minutes: 12, presence_ratio: 0.93 },
   },
@@ -80,6 +95,8 @@ const DEMO_SCENARIOS = [
     hydration: { water_visible: false, container_type: "none", description: "Empty desk" },
     focus_state: { state: "away", confidence: 1.0, description: "Seat is empty" },
     environment: { lighting: "good", monitor_position: "unknown", issues: [] },
+    screen_proximity: { status: "safe", estimated_distance: "normal", face_fill_ratio: 0.0, description: "No person at desk" },
+    eye_openness: { status: "normal", openness_percent: 80, sore_eyes_likely: false, description: "No person detected" },
     overall_wellness: "good",
     frame_summary: "No person detected at workstation",
     time_based_alerts: [{ type: "absence_alert", severity: "critical", message: "You suddenly disappeared from view — are you okay?", category: "COLLAPSE_RISK" }],
@@ -121,6 +138,10 @@ export default function App() {
       if (!shouldShowAlert(`ta:${alert.type}`)) continue;
       if (alert.category === "COLLAPSE_RISK") toast.error(alert.message);
       else if (alert.category === "OVERWORK" || alert.category === "POSTURE") toast.warning(alert.message);
+      else if (alert.category === "EYE_HEALTH") {
+        if (alert.severity === "critical") toast.error(alert.message);
+        else toast.warning(alert.message);
+      }
       else toast.info(alert.message);
     }
 
@@ -133,6 +154,15 @@ export default function App() {
     }
     if (a.eye_strain?.severity === "severe" && shouldShowAlert("eye_severe")) {
       toast.warning("Severe eye strain detected — look away from screen");
+    }
+    if (a.screen_proximity?.status === "too_close" && shouldShowAlert("screen_too_close")) {
+      toast.warning("You are too close to the screen — move back for eye health");
+    }
+    if (a.eye_openness?.sore_eyes_likely && shouldShowAlert("sore_eyes_detected")) {
+      toast.warning("Your eyes appear sore — try the 20-20-20 rule");
+    }
+    if ((a.eye_openness?.openness_percent ?? 100) < 30 && shouldShowAlert("eye_critical")) {
+      toast.error("Your eyes are nearly closed — rest your eyes immediately");
     }
     if (a.overall_wellness === "poor" && shouldShowAlert("wellness_poor")) {
       toast.error("Poor wellness detected: " + (a.frame_summary ?? ""));

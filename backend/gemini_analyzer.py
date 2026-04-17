@@ -36,6 +36,10 @@ PRESENCE: Detect if a person is visible at all. If the seat is empty note it.
 
 ENVIRONMENT: Note obvious environmental issues — very poor lighting, screen glare, monitor too high or too low relative to eye level.
 
+SCREEN_PROXIMITY: Estimate how close the person's face is to the screen based on the apparent size of the face relative to the frame. A face that takes up more than 40 percent of the frame height is too close. Classify as 'safe', 'close', or 'too_close'.
+
+EYE_OPENNESS: Analyze how open the eyes are as an indicator of eye soreness or fatigue. Look at the eye aperture — how much of the iris and white of the eye is visible. A fully alert person has wide open eyes. Soreness or fatigue causes partial closure, squinting, or frequent blinking posture. Rate as 'normal', 'partially_closed', or 'squinting'. Also estimate an openness percentage from 0 to 100 where 100 is fully open and 0 is fully closed.
+
 Return exactly this JSON structure and nothing else:
 {
   "presence": true,
@@ -65,6 +69,18 @@ Return exactly this JSON structure and nothing else:
     "monitor_position": "good",
     "issues": []
   },
+  "screen_proximity": {
+    "status": "safe",
+    "estimated_distance": "normal",
+    "face_fill_ratio": 0.28,
+    "description": "Good viewing distance maintained"
+  },
+  "eye_openness": {
+    "status": "normal",
+    "openness_percent": 88,
+    "sore_eyes_likely": false,
+    "description": "Eyes wide open and alert"
+  },
   "overall_wellness": "good",
   "frame_summary": "Person is sitting well with water nearby and appears focused"
 }
@@ -77,6 +93,10 @@ Field constraints:
   focus_state.state: exactly "focused" | "drowsy" | "distracted" | "away"
   environment.lighting: exactly "good" | "poor" | "glare"
   environment.monitor_position: exactly "good" | "too_high" | "too_low" | "unknown"
+  screen_proximity.status: exactly "safe" | "close" | "too_close"
+  screen_proximity.estimated_distance: exactly "normal" | "slightly_close" | "very_close"
+  eye_openness.status: exactly "normal" | "partially_closed" | "squinting"
+  eye_openness.openness_percent: integer 0-100
   overall_wellness: exactly "good" | "fair" | "poor"
 
 If no person is visible set presence to false and return neutral/unknown values for all other fields."""
@@ -88,6 +108,8 @@ _DEFAULT_RESULT = {
     "hydration": {"water_visible": False, "container_type": "none", "description": "No data"},
     "focus_state": {"state": "away", "confidence": 0.0, "description": "No data"},
     "environment": {"lighting": "good", "monitor_position": "unknown", "issues": []},
+    "screen_proximity": {"status": "safe", "estimated_distance": "normal", "face_fill_ratio": 0.3, "description": "No data"},
+    "eye_openness": {"status": "normal", "openness_percent": 80, "sore_eyes_likely": False, "description": "No data"},
     "overall_wellness": "good",
     "frame_summary": "Analysis unavailable",
 }

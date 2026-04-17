@@ -20,6 +20,12 @@ const WELLNESS_BADGE = {
   poor: "text-destructive border-destructive",
 };
 
+function eyeMeterColor(pct) {
+  if (pct >= 80) return "#639922";
+  if (pct >= 50) return "#EF9F27";
+  return "#E24B4A";
+}
+
 function WellnessBadge({ wellness }) {
   if (!wellness || wellness === "good") {
     return (
@@ -55,7 +61,6 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
     onMonitoringChange?.(isActive);
   }, [isActive, onMonitoringChange]);
 
-  // Apply demo analysis
   useEffect(() => {
     if (!demoAnalysis) return;
     setAnalysis(demoAnalysis);
@@ -105,32 +110,54 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
     }
   };
 
-  const posture      = currentAnalysis?.posture ?? {};
-  const eyeStrain    = currentAnalysis?.eye_strain ?? {};
-  const hydration    = currentAnalysis?.hydration ?? {};
-  const focusState   = currentAnalysis?.focus_state ?? {};
-  const wellness     = currentAnalysis?.overall_wellness ?? "good";
-  const presence     = currentAnalysis?.presence ?? false;
+  const posture       = currentAnalysis?.posture        ?? {};
+  const eyeStrain     = currentAnalysis?.eye_strain     ?? {};
+  const hydration     = currentAnalysis?.hydration      ?? {};
+  const focusState    = currentAnalysis?.focus_state    ?? {};
+  const wellness      = currentAnalysis?.overall_wellness ?? "good";
+  const presence      = currentAnalysis?.presence       ?? false;
+  const proximity     = currentAnalysis?.screen_proximity ?? {};
+  const eyeOpenness   = currentAnalysis?.eye_openness   ?? {};
 
-  const postureStatus = posture.status ?? "good";
-  const postureBar    = POSTURE_BAR[postureStatus] ?? POSTURE_BAR.good;
-  const showFeed      = isActive || !!demoAnalysis;
-  const isDrowsy      = focusState.state === "drowsy";
-  const eyeRing       = eyeStrain.detected && eyeStrain.severity !== "none";
+  const postureStatus  = posture.status ?? "good";
+  const postureBar     = POSTURE_BAR[postureStatus] ?? POSTURE_BAR.good;
+  const showFeed       = isActive || !!demoAnalysis;
+  const isDrowsy       = focusState.state === "drowsy";
+
+  // Border styling — amber beats red so proximity takes precedence visually
+  const proxStatus     = proximity.status ?? "safe";
+  const eyeRing        = eyeStrain.detected && eyeStrain.severity !== "none";
+  const proxRing       = proxStatus === "too_close";
+  const proxSubtle     = proxStatus === "close";
+
+  const opennessPct    = eyeOpenness.openness_percent ?? 80;
+  const eyeSore        = eyeOpenness.sore_eyes_likely ?? false;
 
   return (
     <div className="bg-card rounded-xl overflow-hidden border border-border flex flex-col">
       <div className="relative">
+        {/* Video with conditional border rings */}
         <video
           ref={videoRef}
           className={cn(
             "w-full aspect-video object-cover bg-black",
-            eyeRing && "outline outline-2 outline-offset-[-2px] outline-red-500"
+            proxRing  && "outline outline-2 outline-offset-[-2px]",
+            !proxRing && eyeRing && "outline outline-2 outline-offset-[-2px] outline-red-500"
           )}
-          style={eyeRing ? { animation: "borderPulse 1s ease-in-out infinite" } : undefined}
+          style={
+            proxRing
+              ? { outline: "2px solid #EF9F27", outlineOffset: "-2px", animation: "borderPulse 1s ease-in-out infinite" }
+              : proxSubtle
+              ? { outline: "2px solid #EF9F2766", outlineOffset: "-2px" }
+              : eyeRing
+              ? { outline: "2px solid #ef4444", outlineOffset: "-2px", animation: "borderPulse 1s ease-in-out infinite" }
+              : undefined
+          }
           muted
           playsInline
         />
+
+        {/* ── Overlays ── */}
 
         {/* Camera-off placeholder */}
         {!isActive && !demoAnalysis && (
@@ -149,14 +176,57 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
           </div>
         )}
 
+        {/* Screen proximity top banner */}
+        {showFeed && proxRing && (
+          <div
+            className="absolute top-0 left-0 right-0 z-30 flex items-center justify-center"
+            style={{
+              height: "32px",
+              background: "rgba(239,159,39,0.85)",
+              transition: "opacity 0.3s",
+            }}
+          >
+            <span style={{ color: "#fff", fontSize: "13px", fontWeight: 500 }}>
+              Move back from screen
+            </span>
+          </div>
+        )}
+
         {/* Posture bar — left edge */}
         {showFeed && (
           <div className="absolute left-0 top-0 bottom-0 w-5 flex flex-col z-10">
-            <span className="text-white text-[9px] font-bold rotate-180 writing-vertical py-1 px-0.5 bg-black/50 text-center"
-              style={{ writingMode: "vertical-rl" }}>
+            <span
+              className="text-white text-[9px] font-bold py-1 px-0.5 bg-black/50 text-center"
+              style={{ writingMode: "vertical-rl" }}
+            >
               {postureBar.label}
             </span>
             <div className={cn("flex-1", postureBar.bg, "opacity-80")} />
+          </div>
+        )}
+
+        {/* Eye openness meter — bottom left */}
+        {showFeed && (
+          <div className="absolute bottom-10 left-7 z-10" style={{ width: 120 }}>
+            <p style={{ color: "#fff", fontSize: 10, marginBottom: 2 }}>
+              Eye openness
+              {eyeSore && (
+                <span style={{ color: "#E24B4A", marginLeft: 4, fontSize: 10, fontWeight: 600 }}>
+                  Sore
+                </span>
+              )}
+            </p>
+            <div style={{ width: 120, height: 8, borderRadius: 4, background: "rgba(0,0,0,0.4)", overflow: "hidden" }}>
+              <div
+                style={{
+                  height: "100%",
+                  width: `${(opennessPct / 100) * 120}px`,
+                  background: eyeMeterColor(opennessPct),
+                  borderRadius: 4,
+                  transition: "width 0.5s ease",
+                }}
+              />
+            </div>
           </div>
         )}
 
@@ -204,7 +274,7 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
           </div>
         )}
 
-        {/* Empty seat note */}
+        {/* Empty seat */}
         {showFeed && !presence && !isDrowsy && (
           <div className="absolute bottom-2 left-7 right-20 z-10">
             <Badge variant="outline" className="bg-black/60 text-muted-foreground border-border">
@@ -222,8 +292,8 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
 
         {/* Legend */}
         <div className="absolute bottom-2 left-7 z-20">
-          {!showFeed || status === "error" ? null : (
-            <Card className="shadow-none overflow-hidden" style={{ maxWidth: "160px" }}>
+          {showFeed && status !== "error" && (
+            <Card className="shadow-none overflow-hidden" style={{ maxWidth: "180px" }}>
               <button
                 className="w-full px-2 py-1 text-xs text-muted-foreground flex items-center justify-between gap-1 hover:bg-muted"
                 onClick={() => setLegendOpen(o => !o)}
@@ -237,8 +307,12 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
                     { color: "#22c55e", label: "Good posture bar" },
                     { color: "#eab308", label: "Warning posture bar" },
                     { color: "#ef4444", label: "Poor posture / eye strain ring" },
+                    { color: "#EF9F27", label: "Too close to screen (amber ring)" },
                     { color: "#22c55e", label: "Hydrated" },
                     { color: "#f59e0b", label: "No water seen" },
+                    { color: "#639922", label: "Eye meter — open" },
+                    { color: "#EF9F27", label: "Eye meter — partial" },
+                    { color: "#E24B4A", label: "Eye meter — low / sore" },
                   ].map(({ color, label }) => (
                     <div key={label} className="flex items-center gap-1.5">
                       <span style={{ width: 10, height: 10, borderRadius: 2, background: color, flexShrink: 0, display: "inline-block" }} />

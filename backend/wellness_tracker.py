@@ -33,6 +33,9 @@ class WellnessTracker:
 
         self.consecutive_poor_posture_frames: int = 0
         self.consecutive_drowsy_frames: int = 0
+        self.consecutive_too_close_frames: int = 0
+        self.consecutive_sore_eye_frames: int = 0
+        self.last_eye_soreness_alert: Optional[datetime] = None
 
         self.total_frames_analyzed: int = 0
         self.frames_with_person: int = 0
@@ -171,6 +174,81 @@ class WellnessTracker:
                 "category": "COLLAPSE_RISK",
             })
             self.consecutive_drowsy_frames = 0
+
+        # ---- SCREEN PROXIMITY ---------------------------------------
+        proximity = analysis.get("screen_proximity", {})
+        prox_status = proximity.get("status", "safe")
+
+        if prox_status == "too_close":
+            self.consecutive_too_close_frames += 1
+        else:
+            self.consecutive_too_close_frames = 0
+
+        if prox_status == "too_close" and self.consecutive_too_close_frames >= 2:
+            alerts.append({
+                "type": "screen_proximity",
+                "severity": "warning",
+                "message": (
+                    "You are too close to the screen — "
+                    "move back at least 50-70cm for healthy viewing distance"
+                ),
+                "category": "EYE_HEALTH",
+            })
+            self.consecutive_too_close_frames = 0
+        elif prox_status == "close" and self.consecutive_too_close_frames >= 5:
+            alerts.append({
+                "type": "screen_proximity",
+                "severity": "info",
+                "message": "You are sitting slightly close to the screen — try moving back a little",
+                "category": "EYE_HEALTH",
+            })
+            self.consecutive_too_close_frames = 0
+
+        # ---- EYE SORENESS -------------------------------------------
+        eye_open = analysis.get("eye_openness", {})
+        sore = eye_open.get("sore_eyes_likely", False)
+        eye_status = eye_open.get("status", "normal")
+        openness_pct = eye_open.get("openness_percent", 80)
+
+        if sore or eye_status == "squinting":
+            self.consecutive_sore_eye_frames += 1
+        else:
+            self.consecutive_sore_eye_frames = 0
+
+        if self.consecutive_sore_eye_frames >= 3:
+            eye_alert_ok = (
+                self.last_eye_soreness_alert is None
+                or (now - self.last_eye_soreness_alert).total_seconds() / 60 >= 10
+            )
+            if eye_alert_ok:
+                alerts.append({
+                    "type": "eye_soreness",
+                    "severity": "warning",
+                    "message": (
+                        "Your eyes appear sore or strained — try the 20-20-20 rule: "
+                        "look at something 20 feet away for 20 seconds"
+                    ),
+                    "category": "EYE_HEALTH",
+                })
+                self.last_eye_soreness_alert = now
+                self.consecutive_sore_eye_frames = 0
+
+        if openness_pct < 30:
+            eye_crit_ok = (
+                self.last_eye_soreness_alert is None
+                or (now - self.last_eye_soreness_alert).total_seconds() / 60 >= 10
+            )
+            if eye_crit_ok:
+                alerts.append({
+                    "type": "eye_critical",
+                    "severity": "critical",
+                    "message": (
+                        "Your eyes are nearly closed — "
+                        "rest your eyes immediately, look away from all screens"
+                    ),
+                    "category": "EYE_HEALTH",
+                })
+                self.last_eye_soreness_alert = now
 
         # ---- SUDDEN ABSENCE (COLLAPSE RISK) -------------------------
         prev_history = list(self._presence_history)
