@@ -1,24 +1,24 @@
 """
-Gemini 1.5 Flash vision analyzer for WatchDog.
+OpenAI GPT-4o vision analyzer for WatchDog.
 
-Sends a JPEG frame to Gemini and returns a structured safety analysis.
+Sends a JPEG frame to GPT-4o and returns a structured safety analysis.
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
 from typing import Optional
 
-from google import genai
-from google.genai import types
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-MODEL_NAME = "gemini-1.5-flash-latest"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+MODEL_NAME = "gpt-4o"
 
 SAFETY_PROMPT = """
 You are an AI-powered workstation safety inspector for a smart manufacturing facility.
@@ -43,17 +43,17 @@ If the scene is safe, set "safe": true, "severity": "low", "category": "none".
 Respond ONLY with the JSON object — no markdown fences, no extra text.
 """
 
-_client: Optional[genai.Client] = None
+_client: Optional[OpenAI] = None
 
 
-def _get_client() -> genai.Client:
+def _get_client() -> OpenAI:
     global _client
     if _client is None:
-        if not GEMINI_API_KEY:
+        if not OPENAI_API_KEY:
             raise EnvironmentError(
-                "GEMINI_API_KEY is not set. Add it to your .env file."
+                "OPENAI_API_KEY is not set. Add it to your .env file."
             )
-        _client = genai.Client(api_key=GEMINI_API_KEY)
+        _client = OpenAI(api_key=OPENAI_API_KEY)
     return _client
 
 
@@ -69,18 +69,27 @@ def analyze_frame(jpeg_bytes: bytes) -> dict:
     """
     client = _get_client()
 
-    image_part = types.Part.from_bytes(data=jpeg_bytes, mime_type="image/jpeg")
+    b64_image = base64.b64encode(jpeg_bytes).decode("utf-8")
 
-    response = client.models.generate_content(
+    response = client.chat.completions.create(
         model=MODEL_NAME,
-        contents=[SAFETY_PROMPT, image_part],
-        config=types.GenerateContentConfig(
-            temperature=0.1,
-            max_output_tokens=512,
-        ),
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": SAFETY_PROMPT},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"},
+                    },
+                ],
+            }
+        ],
+        max_tokens=512,
+        temperature=0.1,
     )
 
-    raw = response.text.strip()
+    raw = response.choices[0].message.content.strip()
 
     # Strip accidental markdown fences
     raw = re.sub(r"^```[a-z]*\n?", "", raw)
@@ -93,7 +102,7 @@ def analyze_frame(jpeg_bytes: bytes) -> dict:
             "safe": True,
             "severity": "low",
             "category": "none",
-            "description": "Could not parse Gemini response.",
+            "description": "Could not parse OpenAI response.",
             "recommendations": [],
         }
 
