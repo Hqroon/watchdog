@@ -2,10 +2,12 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
+import { useState } from "react";
 import { CHART, SEVERITY, SURFACE } from "../ui/tokens.js";
 import Badge from "../ui/Badge.jsx";
 import Card from "../ui/Card.jsx";
 import SectionHeader from "../ui/SectionHeader.jsx";
+import StatusDot from "../ui/StatusDot.jsx";
 
 function groupByCategory(incidents) {
   const map = {};
@@ -28,13 +30,53 @@ function groupByHour(incidents) {
     .map(([hour, count]) => ({ hour, count }));
 }
 
+function formatRelativeTime(timestamp) {
+  const now = Date.now();
+  const diffMs = Math.max(0, now - timestamp * 1000);
+  const seconds = Math.floor(diffMs / 1000);
+
+  if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"} ago`;
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+
+  const days = Math.floor(hours / 24);
+  if (days < 365) return `${days} day${days === 1 ? "" : "s"} ago`;
+
+  const years = Math.floor(days / 365);
+  return `${years} year${years === 1 ? "" : "s"} ago`;
+}
+
+function formatExactTime(timestamp) {
+  return new Date(timestamp * 1000).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
 export default function SupervisorDashboard({ incidents, stats }) {
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
   const pieData = Object.entries(stats.by_severity ?? {})
     .filter(([, v]) => v > 0)
     .map(([name, value]) => ({ name, value }));
 
   const categoryData = groupByCategory(incidents);
   const hourData = groupByHour(incidents);
+  const recentIncidents = incidents.slice(0, 20);
+
+  function toggleExpanded(id) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -122,7 +164,86 @@ export default function SupervisorDashboard({ incidents, stats }) {
         <div className={`px-4 py-3 border-b ${SURFACE.sectionBorder}`}>
           <SectionHeader title="Recent Incidents" />
         </div>
-        <div className="overflow-x-auto">
+        <div className="md:hidden">
+          {recentIncidents.length === 0 ? (
+            <div className="px-4 py-8 text-center text-gray-500 text-sm">
+              No incidents recorded yet.
+            </div>
+          ) : (
+            <div className={`divide-y ${SURFACE.sectionBorder}`}>
+              {recentIncidents.map((inc) => {
+                const isExpanded = expandedIds.has(inc.id);
+                const severity = SEVERITY[inc.severity] ?? SEVERITY.low;
+                const panelId = `incident-panel-${inc.id}`;
+
+                return (
+                  <div
+                    key={inc.id}
+                    className={`px-4 py-3 transition-colors ${SURFACE.hoverRow}`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(inc.id)}
+                      className="block w-full text-left"
+                      aria-expanded={isExpanded}
+                      aria-controls={panelId}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <Badge className={severity.pill}>{inc.severity}</Badge>
+                            <span className="text-sm capitalize text-white">
+                              {inc.category}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <StatusDot className={inc.resolved ? "bg-green-500" : "bg-yellow-500"} />
+                              <span className={`text-xs ${inc.resolved ? "text-green-400" : "text-yellow-400"}`}>
+                                {inc.resolved ? "Resolved" : "Open"}
+                              </span>
+                            </div>
+                          </div>
+                          {!isExpanded && (
+                            <div className="mt-1">
+                              <span className={`text-xs ${SURFACE.mutedText}`}>
+                                {formatRelativeTime(inc.timestamp)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2 pt-0.5">
+                          <span className={`text-xs transition-transform ${isExpanded ? "rotate-180" : ""}`}>
+                            ▼
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+
+                    <div
+                      id={panelId}
+                      className={`grid overflow-hidden transition-[grid-template-rows] duration-200 ease-out ${
+                        isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                      }`}
+                    >
+                      <div className="min-h-0">
+                        <div className="border-t border-gray-800 pt-3 mt-3">
+                          <p className="text-xs text-gray-300">
+                            <span className="font-semibold text-white">{formatRelativeTime(inc.timestamp)}</span>
+                            <span className={`mx-2 ${SURFACE.mutedText}`}>•</span>
+                            <span className={SURFACE.mutedText}>{formatExactTime(inc.timestamp)}</span>
+                          </p>
+                          <p className="mt-3 text-sm leading-relaxed text-gray-200">
+                            {inc.description}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-xs text-gray-300">
             <thead className={SURFACE.tableHeader}>
               <tr>
@@ -134,7 +255,7 @@ export default function SupervisorDashboard({ incidents, stats }) {
               </tr>
             </thead>
             <tbody className={`divide-y ${SURFACE.sectionBorder}`}>
-              {incidents.slice(0, 20).map((inc) => (
+              {recentIncidents.map((inc) => (
                 <tr key={inc.id} className={SURFACE.hoverRow}>
                   <td className={`px-4 py-2 whitespace-nowrap ${SURFACE.mutedText}`}>
                     {new Date(inc.timestamp * 1000).toLocaleTimeString()}
@@ -155,7 +276,7 @@ export default function SupervisorDashboard({ incidents, stats }) {
                   </td>
                 </tr>
               ))}
-              {incidents.length === 0 && (
+              {recentIncidents.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
                     No incidents recorded yet.
