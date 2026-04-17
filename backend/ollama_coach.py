@@ -22,28 +22,43 @@ PULL_TIMEOUT = 180.0  # seconds
 
 
 COACHING_SYSTEM = (
-    "You are a friendly, encouraging workplace safety coach. "
-    "Your tone is supportive — never accusatory. "
+    "You are a friendly, encouraging personal wellness coach. "
+    "Your tone is warm and supportive — never judgmental. "
     "Reply ONLY with the coaching message itself — no preamble, no intro like 'Sure' or 'Here is', no labels. "
     "Keep responses to 2-3 sentences maximum."
 )
 
 
 def _build_prompt(analysis: dict) -> str:
-    summary = analysis.get("frame_summary", "Safety issue detected.")
-    posture = analysis.get("posture_issues", [])
-    housekeeping = analysis.get("housekeeping_issues", [])
+    summary = analysis.get("frame_summary", "Wellness issue detected.")
 
     details = []
-    for p in posture:
-        details.append(f"Posture issue: {p.get('description', p.get('issue', ''))}")
-    for h in housekeeping:
-        details.append(f"Housekeeping: {h.get('description', h.get('issue', ''))}")
 
-    detail_text = "; ".join(details) if details else "follow standard procedures"
+    posture = analysis.get("posture", {})
+    if posture.get("status") in ("warning", "poor"):
+        issues = ", ".join(posture.get("issues", [])) or posture.get("description", "")
+        details.append(f"Posture: {issues}")
+
+    eye = analysis.get("eye_strain", {})
+    if eye.get("detected"):
+        details.append(f"Eye strain: {eye.get('description', eye.get('severity', ''))}")
+
+    focus = analysis.get("focus_state", {})
+    if focus.get("state") in ("drowsy", "distracted"):
+        details.append(f"Focus state: {focus.get('description', focus.get('state', ''))}")
+
+    hydration = analysis.get("hydration", {})
+    if not hydration.get("water_visible"):
+        details.append("No water visible on desk")
+
+    env = analysis.get("environment", {})
+    if env.get("issues"):
+        details.append(f"Environment: {', '.join(env['issues'])}")
+
+    detail_text = "; ".join(details) if details else "general wellness check"
     return (
-        f"Scene: {summary}. Issues found: {detail_text}. "
-        "Please write a short coaching message for the worker to correct this safely."
+        f"Observation: {summary}. Concerns: {detail_text}. "
+        "Please write a short, encouraging wellness coaching message."
     )
 
 
@@ -104,15 +119,15 @@ def generate_coaching(analysis: dict) -> str:
             return text
     except httpx.ConnectError:
         return (
-            "Safety issue detected. Please review the recommendation and follow "
-            "standard operating procedures. Seek support if you are unsure."
+            "Wellness check triggered. Take a moment to sit up straight, "
+            "take a deep breath, and have some water. Coaching unavailable (Ollama not running)."
         )
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == 404:
             return (
-                "Safety issue detected. Coaching unavailable (model not found). "
+                "Wellness check triggered. Coaching unavailable (model not found). "
                 f"Run: ollama pull {OLLAMA_MODEL}"
             )
-        return f"Safety issue detected. Coaching unavailable ({exc})."
+        return f"Wellness check triggered. Coaching unavailable ({exc})."
     except Exception as exc:  # noqa: BLE001
-        return f"Safety issue detected. Coaching unavailable ({exc})."
+        return f"Wellness check triggered. Coaching unavailable ({exc})."

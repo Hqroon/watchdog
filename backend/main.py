@@ -3,11 +3,12 @@ Lance — FastAPI backend
 ==========================
 Endpoints
 ---------
-POST /analyze          Accept a JPEG frame, run Gemini + Ollama, return analysis.
-GET  /incidents        List recent incidents.
+POST /analyze              Accept a JPEG frame, run GPT-4o + Ollama, return wellness analysis.
+GET  /incidents            List recent incidents.
 POST /incidents/{id}/resolve  Mark an incident resolved.
-GET  /stats            Aggregated stats.
-WS   /ws               Real-time push of new incidents to connected clients.
+GET  /stats                Aggregated stats.
+POST /reset-session        Resets the WellnessTracker for a new session.
+WS   /ws                   Real-time push of new incidents to connected clients.
 """
 
 from __future__ import annotations
@@ -25,9 +26,16 @@ from fastapi.responses import JSONResponse
 from gemini_analyzer import analyze_frame
 from incident_store import Incident, store
 from ollama_coach import generate_coaching
+from wellness_tracker import WellnessTracker
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("lance")
+
+# ---------------------------------------------------------------------------
+# Singletons
+# ---------------------------------------------------------------------------
+wellness_tracker = WellnessTracker()
+
 
 # ---------------------------------------------------------------------------
 # WebSocket connection manager
@@ -68,7 +76,7 @@ async def lifespan(app: FastAPI):
     logger.info("Lance backend stopping…")
 
 
-app = FastAPI(title="Lance API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Lance API", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -90,44 +98,59 @@ async def health():
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
     """
-    Accepts a JPEG image, runs Gemini vision analysis and Ollama coaching.
-    Stores the result as an Incident if a hazard is detected.
-    Broadcasts the incident over WebSocket.
+    Accepts a JPEG image, runs GPT-4o wellness analysis and Ollama coaching.
+    Stores an Incident when overall_wellness is 'poor' or a critical time alert fires.
+    Broadcasts over WebSocket.
     """
+    global wellness_tracker
+
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image.")
 
     jpeg_bytes = await file.read()
 
-    # --- Gemini analysis (blocking — run in thread pool) -----------------
     loop = asyncio.get_event_loop()
     try:
         analysis = await loop.run_in_executor(None, analyze_frame, jpeg_bytes)
     except Exception as exc:
-        logger.error("Gemini error: %s", exc)
-        raise HTTPException(status_code=502, detail=f"Gemini error: {exc}") from exc
+        logger.error("GPT-4o error: %s", exc)
+        raise HTTPException(status_code=502, detail=f"GPT-4o error: {exc}") from exc
 
-    overall_risk = analysis.get("overall_risk", "low")
+    # Time-based alerts from tracker
+    time_alerts = wellness_tracker.update(analysis)
+    session_stats = wellness_tracker.get_session_stats()
+
     incident = None
     coach_msg = None
-    if overall_risk in ("medium", "high"):
-        # --- Ollama coaching (blocking) -----------------------------------
+
+    overall_wellness = analysis.get("overall_wellness", "good")
+    has_critical_alert = any(a.get("severity") == "critical" for a in time_alerts)
+
+    if overall_wellness == "poor" or has_critical_alert:
         try:
             coach_msg = await loop.run_in_executor(None, generate_coaching, analysis)
         except Exception as exc:
             logger.warning("Ollama error (non-fatal): %s", exc)
-            coach_msg = "Safety issue detected. Please follow standard procedures."
+            coach_msg = "Wellness issue detected. Take a moment to check in with yourself."
 
-        posture = analysis.get("posture_issues", [])
-        if posture:
+        # Derive incident category from the most urgent signal
+        focus_state = analysis.get("focus_state", {}).get("state", "")
+        posture_status = analysis.get("posture", {}).get("status", "good")
+        eye_sev = analysis.get("eye_strain", {}).get("severity", "none")
+
+        if any(a.get("category") == "COLLAPSE_RISK" for a in time_alerts) or focus_state == "drowsy":
+            category = "collapse_risk"
+        elif posture_status == "poor":
             category = "posture"
-        elif analysis.get("housekeeping_issues"):
-            category = "housekeeping"
+        elif eye_sev in ("mild", "severe"):
+            category = "eye_strain"
         else:
-            category = "hazard"
+            category = "wellness"
+
+        severity = "high" if has_critical_alert else "medium"
 
         incident = Incident(
-            severity=overall_risk,
+            severity=severity,
             category=category,
             description=analysis.get("frame_summary", ""),
             coach_message=coach_msg,
@@ -135,12 +158,13 @@ async def analyze(file: UploadFile = File(...)):
         )
         store.add(incident)
 
-        # Broadcast to WebSocket clients
         await manager.broadcast(
             {
                 "event": "new_incident",
                 "incident": incident.to_dict(),
                 "coach": coach_msg,
+                "time_based_alerts": time_alerts,
+                "session_stats": session_stats,
                 "stats": store.stats(),
             }
         )
@@ -148,6 +172,8 @@ async def analyze(file: UploadFile = File(...)):
     return JSONResponse(
         {
             "analysis": analysis,
+            "time_based_alerts": time_alerts,
+            "session_stats": session_stats,
             "incident_id": incident.id if incident else None,
             "incident": incident.to_dict() if incident else None,
             "coach": coach_msg if incident else None,
@@ -189,6 +215,15 @@ async def get_stats():
     return store.stats()
 
 
+@app.post("/reset-session")
+async def reset_session():
+    """Resets the WellnessTracker — clears all session timing state."""
+    global wellness_tracker
+    wellness_tracker = WellnessTracker()
+    logger.info("Session reset.")
+    return {"message": "Session reset"}
+
+
 @app.post("/incidents/seed")
 async def seed_incident(body: dict):
     """Dev-only endpoint used by seed_incidents.py to inject fake data."""
@@ -219,10 +254,8 @@ async def seed_incident(body: dict):
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
-        # Send current stats on connect
         await websocket.send_json({"event": "connected", "stats": store.stats()})
         while True:
-            # Keep connection alive; clients can send pings
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)

@@ -8,97 +8,59 @@ import { cn } from "@/lib/utils";
 
 const INTERVAL_MS = 3000;
 
-const SEV = {
-  low:    { border: "border-green-500",  badge: "bg-green-600"  },
-  medium: { border: "border-yellow-500", badge: "bg-yellow-600" },
-  high:   { border: "border-red-500",    badge: "bg-red-600"    },
+const POSTURE_BAR = {
+  good:    { bg: "bg-green-500",  label: "Good" },
+  warning: { bg: "bg-yellow-500", label: "Fair" },
+  poor:    { bg: "bg-red-500",    label: "Poor" },
 };
 
-const CAT_COLOR = {
-  PERSON:       "#378ADD",
-  FOOD_DRINK:   "#E24B4A",
-  WIRES_CABLES: "#EF9F27",
-  TOOLS:        "#7F77DD",
-  COMPONENTS:   "#1D9E75",
-  HAZARDS:      "#E24B4A",
-  FIRE_EXIT:    "#639922",
+const WELLNESS_BADGE = {
+  good: "text-green-600 border-green-500",
+  fair: "text-yellow-600 border-yellow-500",
+  poor: "text-destructive border-destructive",
 };
 
-const PULSE_CATS = new Set(["HAZARDS", "FOOD_DRINK"]);
-
-const LEGEND_ITEMS = [
-  { color: "#378ADD", label: "Person" },
-  { color: "#E24B4A", label: "Food/Drink" },
-  { color: "#EF9F27", label: "Wires/Cables" },
-  { color: "#7F77DD", label: "Tools" },
-  { color: "#1D9E75", label: "Components" },
-  { color: "#E24B4A", label: "Hazard" },
-  { color: "#639922", label: "Fire Exit" },
-];
-
-function boxColor(det) {
-  if (det.category === "FIRE_EXIT") {
-    return det.severity === "critical" ? "#E24B4A" : "#639922";
-  }
-  return CAT_COLOR[det.category] ?? "#ffffff";
-}
-
-function hazardFromAnalysis(analysis) {
-  const risk = analysis.overall_risk ?? "low";
-  if (risk === "low") return null;
-  const posture = analysis.posture_issues ?? [];
-  const cat = posture.length ? "posture" : "housekeeping";
-  return { severity: risk, category: cat, description: analysis.frame_summary ?? "" };
-}
-
-function RiskBadge({ risk }) {
-  if (!risk || risk === "low") return null;
-  if (risk === "high") {
-    return <Badge variant="destructive" className="uppercase">{risk}</Badge>;
+function WellnessBadge({ wellness }) {
+  if (!wellness || wellness === "good") {
+    return (
+      <Badge variant="outline" className="text-green-600 border-green-500 uppercase">
+        Good
+      </Badge>
+    );
   }
   return (
-    <Badge variant="outline" className="uppercase text-yellow-600 border-yellow-500">
-      {risk}
+    <Badge
+      variant={wellness === "poor" ? "destructive" : "outline"}
+      className={cn("uppercase", wellness !== "poor" && WELLNESS_BADGE[wellness])}
+    >
+      {wellness}
     </Badge>
   );
 }
 
 export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysis }) {
   const [status, setStatus]         = useState("idle");
-  const [hazard, setHazard]         = useState(null);
+  const [analysis, setAnalysis]     = useState(null);
   const [analyzing, setAnalyzing]   = useState(false);
-  const [detections, setDetections] = useState([]);
-  const [vidW, setVidW]             = useState(0);
-  const [vidH, setVidH]             = useState(0);
   const [legendOpen, setLegendOpen] = useState(false);
-  const containerRef                = useRef(null);
   const abortRef                    = useRef(null);
   const sessionRef                  = useRef(0);
   const activeRef                   = useRef(false);
   const { videoRef, isActive, error, startCamera, stopCamera } = useCamera(INTERVAL_MS);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const obs = new ResizeObserver(([entry]) => {
-      setVidW(entry.contentRect.width);
-      setVidH(entry.contentRect.height);
-    });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!demoAnalysis) return;
-    setDetections(demoAnalysis.detections ?? []);
-    setHazard(hazardFromAnalysis(demoAnalysis));
-    setStatus(demoAnalysis.overall_risk === "low" ? "safe" : "warning");
-  }, [demoAnalysis]);
+  const currentAnalysis = demoAnalysis ?? analysis;
 
   useEffect(() => {
     activeRef.current = isActive;
     onMonitoringChange?.(isActive);
   }, [isActive, onMonitoringChange]);
+
+  // Apply demo analysis
+  useEffect(() => {
+    if (!demoAnalysis) return;
+    setAnalysis(demoAnalysis);
+    setStatus(demoAnalysis.overall_wellness === "good" ? "safe" : "warning");
+  }, [demoAnalysis]);
 
   const handleFrame = useCallback(async (dataUrl) => {
     const sessionId = sessionRef.current;
@@ -108,12 +70,17 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
     try {
       const result = await analyzeFrame(dataUrl, controller.signal);
       if (controller.signal.aborted || sessionId !== sessionRef.current || !activeRef.current) return;
-      const analysis = result.analysis ?? {};
-      setDetections(analysis.detections ?? []);
-      const h = hazardFromAnalysis(analysis);
-      setHazard(h);
-      setStatus(h ? "warning" : "safe");
-      onAnalysis?.({ incident: result.incident ?? null, coach: result.coach ?? null });
+
+      const a = result.analysis ?? {};
+      setAnalysis(a);
+      setStatus(a.overall_wellness === "poor" ? "warning" : "safe");
+      onAnalysis?.({
+        analysis: a,
+        timeAlerts: result.time_based_alerts ?? [],
+        sessionStats: result.session_stats ?? {},
+        incident: result.incident ?? null,
+        coach: result.coach ?? null,
+      });
     } catch (err) {
       if (err?.name === "AbortError" || sessionId !== sessionRef.current) return;
       setStatus("error");
@@ -129,8 +96,7 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
       abortRef.current?.abort();
       stopCamera();
       setStatus("idle");
-      setHazard(null);
-      setDetections([]);
+      setAnalysis(null);
       setAnalyzing(false);
       onAnalysis?.(null);
     } else {
@@ -139,23 +105,29 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
     }
   };
 
-  const sev    = hazard?.severity ?? "low";
-  const styles = SEV[sev] ?? SEV.low;
-  const showFeed = isActive || !!demoAnalysis;
-  const activeDetections = demoAnalysis ? (demoAnalysis.detections ?? []) : detections;
+  const posture      = currentAnalysis?.posture ?? {};
+  const eyeStrain    = currentAnalysis?.eye_strain ?? {};
+  const hydration    = currentAnalysis?.hydration ?? {};
+  const focusState   = currentAnalysis?.focus_state ?? {};
+  const wellness     = currentAnalysis?.overall_wellness ?? "good";
+  const presence     = currentAnalysis?.presence ?? false;
+
+  const postureStatus = posture.status ?? "good";
+  const postureBar    = POSTURE_BAR[postureStatus] ?? POSTURE_BAR.good;
+  const showFeed      = isActive || !!demoAnalysis;
+  const isDrowsy      = focusState.state === "drowsy";
+  const eyeRing       = eyeStrain.detected && eyeStrain.severity !== "none";
 
   return (
     <div className="bg-card rounded-xl overflow-hidden border border-border flex flex-col">
-      <div
-        ref={containerRef}
-        className={cn(
-          "relative border-4 transition-colors duration-500",
-          showFeed ? styles.border : "border-border"
-        )}
-      >
+      <div className="relative">
         <video
           ref={videoRef}
-          className="w-full aspect-video object-cover bg-black"
+          className={cn(
+            "w-full aspect-video object-cover bg-black",
+            eyeRing && "outline outline-2 outline-offset-[-2px] outline-red-500"
+          )}
+          style={eyeRing ? { animation: "borderPulse 1s ease-in-out infinite" } : undefined}
           muted
           playsInline
         />
@@ -172,119 +144,111 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
         {demoAnalysis && !isActive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 gap-2">
             <span className="text-4xl">🎬</span>
-            <p className="text-foreground text-sm font-medium">Demo Mode</p>
-            <p className="text-muted-foreground text-xs text-center px-4">{demoAnalysis.frame_summary}</p>
+            <p className="text-white text-sm font-medium">Demo Mode</p>
+            <p className="text-gray-300 text-xs text-center px-4">{demoAnalysis.frame_summary}</p>
+          </div>
+        )}
+
+        {/* Posture bar — left edge */}
+        {showFeed && (
+          <div className="absolute left-0 top-0 bottom-0 w-5 flex flex-col z-10">
+            <span className="text-white text-[9px] font-bold rotate-180 writing-vertical py-1 px-0.5 bg-black/50 text-center"
+              style={{ writingMode: "vertical-rl" }}>
+              {postureBar.label}
+            </span>
+            <div className={cn("flex-1", postureBar.bg, "opacity-80")} />
           </div>
         )}
 
         {/* LIVE indicator */}
         {isActive && (
-          <div className="absolute top-2 left-2 z-10">
+          <div className="absolute top-2 left-7 z-10">
             <Badge variant="outline" className="bg-black/60 border-border text-white gap-1.5">
               <span className={cn(
                 "h-2 w-2 rounded-full",
                 analyzing ? "bg-yellow-400 animate-pulse" : "bg-red-500 animate-ping"
               )} />
-              {analyzing ? "ANALYZING" : "LIVE"}
+              Lance · 1 frame / 3s
             </Badge>
           </div>
         )}
 
-        {/* Bounding boxes */}
-        {showFeed && vidW > 0 && activeDetections.map((det, i) => {
-          const color = boxColor(det);
-          const pulse = PULSE_CATS.has(det.category);
-          return (
-            <div
-              key={i}
-              style={{
-                position:      "absolute",
-                left:          det.box.x * vidW + "px",
-                top:           det.box.y * vidH + "px",
-                width:         det.box.w * vidW + "px",
-                height:        det.box.h * vidH + "px",
-                border:        `2px solid ${color}`,
-                borderRadius:  "3px",
-                pointerEvents: "none",
-                animation:     pulse ? "borderPulse 1s ease-in-out infinite" : "none",
-                zIndex:        5,
-              }}
-            >
-              <span style={{
-                position:    "absolute",
-                top:         0,
-                left:        0,
-                background:  "rgba(0,0,0,0.65)",
-                color:       "#fff",
-                fontSize:    "11px",
-                padding:     "1px 5px",
-                borderRadius:"3px",
-                whiteSpace:  "nowrap",
-                lineHeight:  "1.4",
-              }}>
-                {det.label} {Math.round(det.confidence * 100)}%
-              </span>
-            </div>
-          );
-        })}
+        {/* Wellness badge — top right */}
+        {showFeed && (
+          <div className="absolute top-2 right-2 z-10">
+            <WellnessBadge wellness={wellness} />
+          </div>
+        )}
 
-        {/* Hazard bar */}
-        {showFeed && hazard && (
-          <div className={cn(
-            "absolute bottom-0 left-0 right-0 bg-black/75 backdrop-blur-sm border-t-2 px-4 py-3 z-10",
-            styles.border
-          )}>
-            <div className="flex items-start gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <RiskBadge risk={hazard.severity} />
-                  <span className="text-xs text-gray-300 capitalize font-medium">
-                    {hazard.category?.replace("_", " ")}
-                  </span>
-                </div>
-                <p className="text-sm text-white leading-snug line-clamp-2">{hazard.description}</p>
-              </div>
+        {/* DROWSY overlay */}
+        {showFeed && isDrowsy && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-20">
+            <div className="text-white text-2xl font-bold drop-shadow-lg select-none">
+              Wake up! 😴
             </div>
           </div>
         )}
 
-        {/* Safe indicator */}
-        {showFeed && status === "safe" && !hazard && (
-          <div className="absolute bottom-2 left-2 right-2 z-10">
-            <Badge variant="outline" className="w-full justify-center bg-green-900/70 border-green-600 text-green-300">
-              Workstation is safe
+        {/* Hydration badge — bottom right */}
+        {showFeed && (
+          <div className="absolute bottom-2 right-2 z-10">
+            {hydration.water_visible ? (
+              <Badge variant="outline" className="bg-black/60 text-green-400 border-green-500 gap-1">
+                💧 Hydrated
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="bg-black/60 text-amber-400 border-amber-500 gap-1">
+                💧 No water
+              </Badge>
+            )}
+          </div>
+        )}
+
+        {/* Empty seat note */}
+        {showFeed && !presence && !isDrowsy && (
+          <div className="absolute bottom-2 left-7 right-20 z-10">
+            <Badge variant="outline" className="bg-black/60 text-muted-foreground border-border">
+              No person detected
             </Badge>
           </div>
         )}
 
         {/* Error */}
         {status === "error" && (
-          <div className="absolute bottom-2 left-2 z-10">
+          <div className="absolute bottom-2 left-7 z-10">
             <Badge variant="destructive">Analysis failed — retrying…</Badge>
           </div>
         )}
 
         {/* Legend */}
-        <div className="absolute bottom-2 right-2 z-20">
-          <Card className="shadow-none overflow-hidden" style={{ maxWidth: "160px" }}>
-            <button
-              className="w-full px-2 py-1 text-xs text-muted-foreground flex items-center justify-between gap-1 hover:bg-muted"
-              onClick={() => setLegendOpen(o => !o)}
-            >
-              <span>Legend</span>
-              <span>{legendOpen ? "▲" : "▼"}</span>
-            </button>
-            {legendOpen && (
-              <CardContent className="px-2 pb-2 pt-0 flex flex-col gap-0.5">
-                {LEGEND_ITEMS.map(({ color, label }) => (
-                  <div key={label} className="flex items-center gap-1.5">
-                    <span style={{ width: 10, height: 10, borderRadius: 2, background: color, flexShrink: 0, display: "inline-block" }} />
-                    <span className="text-xs text-muted-foreground">{label}</span>
-                  </div>
-                ))}
-              </CardContent>
-            )}
-          </Card>
+        <div className="absolute bottom-2 left-7 z-20">
+          {!showFeed || status === "error" ? null : (
+            <Card className="shadow-none overflow-hidden" style={{ maxWidth: "160px" }}>
+              <button
+                className="w-full px-2 py-1 text-xs text-muted-foreground flex items-center justify-between gap-1 hover:bg-muted"
+                onClick={() => setLegendOpen(o => !o)}
+              >
+                <span>Legend</span>
+                <span>{legendOpen ? "▲" : "▼"}</span>
+              </button>
+              {legendOpen && (
+                <CardContent className="px-2 pb-2 pt-0 flex flex-col gap-1">
+                  {[
+                    { color: "#22c55e", label: "Good posture bar" },
+                    { color: "#eab308", label: "Warning posture bar" },
+                    { color: "#ef4444", label: "Poor posture / eye strain ring" },
+                    { color: "#22c55e", label: "Hydrated" },
+                    { color: "#f59e0b", label: "No water seen" },
+                  ].map(({ color, label }) => (
+                    <div key={label} className="flex items-center gap-1.5">
+                      <span style={{ width: 10, height: 10, borderRadius: 2, background: color, flexShrink: 0, display: "inline-block" }} />
+                      <span className="text-xs text-muted-foreground">{label}</span>
+                    </div>
+                  ))}
+                </CardContent>
+              )}
+            </Card>
+          )}
         </div>
       </div>
 

@@ -1,7 +1,7 @@
 """
 OpenAI GPT-4o vision analyzer for Lance.
 
-Sends a JPEG frame to GPT-4o and returns a structured safety analysis.
+Sends a JPEG frame to GPT-4o and returns a structured personal wellness analysis.
 """
 
 from __future__ import annotations
@@ -20,43 +20,77 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 MODEL_NAME = "gpt-4o"
 
-SAFETY_PROMPT = """You are a factory floor safety and quality inspector. Analyze this image and return ONLY a raw JSON object — no markdown, no code fences, no explanation.
+WELLNESS_PROMPT = """You are a personal wellness monitor watching someone at their desk via webcam. Analyze this image carefully and return ONLY a raw JSON object — no markdown, no code fences, no explanation.
 
-Detect and locate everything you can see from these categories:
-- PERSON: any worker, operator, or human figure
-- FOOD_DRINK: food, drink bottles, coffee cups, snacks, any beverage
-- WIRES_CABLES: loose, tangled, or floor-level cables and wires
-- TOOLS: screwdrivers, pliers, soldering irons, multimeters, any hand tools
-- COMPONENTS: PCBs, chips, electronic components, circuit boards
-- HAZARDS: spills, blocked pathways, trip hazards, cluttered surfaces
-- FIRE_EXIT: fire exit signs or doors, note if blocked
+Detect and assess the following wellness indicators:
 
-For every single detected object include a bounding box as normalized coordinates where 0.0 is top-left and 1.0 is bottom-right. x and y are the top-left corner of the box.
+POSTURE: Analyze the person's sitting position. Look for forward head posture, slouching, rounded shoulders, neck tilt, twisted spine, or leaning to one side.
+
+EYE_STRAIN: Look for signs of eye strain — squinting, eyes very close to screen, rubbing eyes, eyes visibly red or squinting hard, or face extremely close to camera.
+
+HYDRATION: Look for any water bottle, glass of water, or drink within reach of the person. Note if a hydration item is visible or absent.
+
+FOCUS_STATE: Assess if the person appears alert and focused, drowsy (eyes drooping, head nodding, cheek resting on hand), or distracted.
+
+PRESENCE: Detect if a person is visible at all. If the seat is empty note it.
+
+ENVIRONMENT: Note obvious environmental issues — very poor lighting, screen glare, monitor too high or too low relative to eye level.
 
 Return exactly this JSON structure and nothing else:
 {
-  "detections": [
-    {
-      "category": "PERSON",
-      "label": "operator at workbench",
-      "confidence": 0.95,
-      "box": { "x": 0.1, "y": 0.05, "w": 0.3, "h": 0.7 },
-      "severity": "ok"
-    }
-  ],
-  "posture_issues": [
-    { "issue": "forward neck lean", "severity": "warning", "description": "Head angled forward sustained" }
-  ],
-  "housekeeping_issues": [
-    { "issue": "loose cable on floor", "severity": "warning", "description": "Trip hazard near station" }
-  ],
-  "overall_risk": "medium",
-  "frame_summary": "One operator, missing PPE, cable hazard on floor"
+  "presence": true,
+  "posture": {
+    "score": 75,
+    "status": "good",
+    "issues": [],
+    "description": "Upright seated position with good alignment"
+  },
+  "eye_strain": {
+    "detected": false,
+    "severity": "none",
+    "description": "Eyes appear relaxed and normal distance from screen"
+  },
+  "hydration": {
+    "water_visible": true,
+    "container_type": "water bottle",
+    "description": "Water bottle visible on desk"
+  },
+  "focus_state": {
+    "state": "focused",
+    "confidence": 0.9,
+    "description": "Alert and engaged with screen"
+  },
+  "environment": {
+    "lighting": "good",
+    "monitor_position": "good",
+    "issues": []
+  },
+  "overall_wellness": "good",
+  "frame_summary": "Person is sitting well with water nearby and appears focused"
 }
 
-Severity values must be exactly: critical, warning, ok
-Overall risk must be exactly: low, medium, high
-Return empty arrays for categories where nothing is detected."""
+Field constraints:
+  posture.status: exactly "good" | "warning" | "poor"
+  posture.score: integer 0-100
+  eye_strain.severity: exactly "none" | "mild" | "severe"
+  hydration.container_type: exactly "water bottle" | "glass" | "cup" | "none"
+  focus_state.state: exactly "focused" | "drowsy" | "distracted" | "away"
+  environment.lighting: exactly "good" | "poor" | "glare"
+  environment.monitor_position: exactly "good" | "too_high" | "too_low" | "unknown"
+  overall_wellness: exactly "good" | "fair" | "poor"
+
+If no person is visible set presence to false and return neutral/unknown values for all other fields."""
+
+_DEFAULT_RESULT = {
+    "presence": False,
+    "posture": {"score": 50, "status": "good", "issues": [], "description": "No data"},
+    "eye_strain": {"detected": False, "severity": "none", "description": "No data"},
+    "hydration": {"water_visible": False, "container_type": "none", "description": "No data"},
+    "focus_state": {"state": "away", "confidence": 0.0, "description": "No data"},
+    "environment": {"lighting": "good", "monitor_position": "unknown", "issues": []},
+    "overall_wellness": "good",
+    "frame_summary": "Analysis unavailable",
+}
 
 _client: Optional[OpenAI] = None
 
@@ -74,13 +108,14 @@ def _get_client() -> OpenAI:
 
 def analyze_frame(jpeg_bytes: bytes) -> dict:
     """
-    Analyze a JPEG frame and return a safety-analysis dict.
+    Analyze a JPEG frame and return a wellness analysis dict.
 
     Args:
         jpeg_bytes: Raw JPEG image data.
 
     Returns:
-        dict with keys: safe, severity, category, description, recommendations
+        dict with wellness fields: presence, posture, eye_strain, hydration,
+        focus_state, environment, overall_wellness, frame_summary.
     """
     client = _get_client()
 
@@ -92,7 +127,7 @@ def analyze_frame(jpeg_bytes: bytes) -> dict:
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": SAFETY_PROMPT},
+                    {"type": "text", "text": WELLNESS_PROMPT},
                     {
                         "type": "image_url",
                         "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"},
@@ -100,7 +135,7 @@ def analyze_frame(jpeg_bytes: bytes) -> dict:
                 ],
             }
         ],
-        max_tokens=2048,
+        max_tokens=1024,
         temperature=0.1,
     )
 
@@ -113,12 +148,6 @@ def analyze_frame(jpeg_bytes: bytes) -> dict:
     try:
         result = json.loads(raw)
     except json.JSONDecodeError:
-        result = {
-            "detections": [],
-            "posture_issues": [],
-            "housekeeping_issues": [],
-            "overall_risk": "low",
-            "frame_summary": "Could not parse OpenAI response.",
-        }
+        result = dict(_DEFAULT_RESULT)
 
     return result

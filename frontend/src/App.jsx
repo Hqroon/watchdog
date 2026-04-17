@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { toast } from "sonner";
 import CameraFeed from "./components/CameraFeed.jsx";
-import AlertPanel from "./components/AlertPanel.jsx";
+import WellnessPanel from "./components/WellnessPanel.jsx";
 import CoachPanel from "./components/CoachPanel.jsx";
-import WorkerDashboard from "./components/WorkerDashboard.jsx";
-import lanceLogo from "./assets/lance-logo.png";
+import SessionDashboard from "./components/SessionDashboard.jsx";
 import { useWebSocket } from "./hooks/useWebSocket.js";
 import { getIncidents, getStats, resolveIncident } from "./api/gemini.js";
 import { Button } from "@/components/ui/button";
@@ -11,82 +11,133 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 
 const THEME_KEY = "lance-theme";
+const ALERT_COOLDOWN_MS = 30_000; // 30 seconds dedup window
 
+// ---------------------------------------------------------------------------
+// Demo scenarios
+// ---------------------------------------------------------------------------
 const DEMO_SCENARIOS = [
   {
-    label: "Hazard",
-    overall_risk: "high",
-    frame_summary: "Liquid spill near workstation creating a slip hazard.",
-    posture_issues: [],
-    housekeeping_issues: [{ issue: "liquid spill", severity: "critical", description: "Slip hazard near operator position" }],
-    detections: [
-      { category: "PERSON",  label: "operator",     confidence: 0.96, box: { x: 0.1,  y: 0.05, w: 0.35, h: 0.8  }, severity: "ok"       },
-      { category: "HAZARDS", label: "liquid spill",  confidence: 0.91, box: { x: 0.0,  y: 0.75, w: 0.5,  h: 0.2  }, severity: "critical" },
-    ],
+    label: "Good Session",
+    presence: true,
+    posture: { score: 85, status: "good", issues: [], description: "Upright seated position, good alignment" },
+    eye_strain: { detected: false, severity: "none", description: "Eyes appear relaxed and normal distance from screen" },
+    hydration: { water_visible: true, container_type: "water bottle", description: "Water bottle visible on desk" },
+    focus_state: { state: "focused", confidence: 0.92, description: "Alert and engaged" },
+    environment: { lighting: "good", monitor_position: "good", issues: [] },
+    overall_wellness: "good",
+    frame_summary: "Good posture, hydrated, focused",
+    time_based_alerts: [],
+    session_stats: { session_duration_minutes: 12, avg_posture_score: 82, time_since_water_minutes: 3, presence_ratio: 0.95 },
   },
   {
-    label: "Posture",
-    overall_risk: "medium",
-    frame_summary: "Operator showing forward neck lean at workbench.",
-    posture_issues: [{ issue: "forward neck lean", severity: "warning", description: "Head angled forward sustained" }],
-    housekeeping_issues: [],
-    detections: [
-      { category: "PERSON", label: "operator leaning forward", confidence: 0.95, box: { x: 0.2, y: 0.1, w: 0.4, h: 0.75 }, severity: "warning" },
-    ],
+    label: "Poor Posture",
+    presence: true,
+    posture: { score: 28, status: "poor", issues: ["forward head posture", "rounded shoulders", "slouching"], description: "Significant forward lean with rounded shoulders" },
+    eye_strain: { detected: true, severity: "mild", description: "Slight squinting, leaning toward screen" },
+    hydration: { water_visible: false, container_type: "none", description: "No water visible on desk" },
+    focus_state: { state: "focused", confidence: 0.85, description: "Focused but tense posture" },
+    environment: { lighting: "good", monitor_position: "too_low", issues: ["monitor too low causing neck strain"] },
+    overall_wellness: "poor",
+    frame_summary: "Poor posture with forward head, no water visible",
+    time_based_alerts: [{ type: "hydration", severity: "warning", message: "No water detected in the last 20 minutes — time to hydrate", category: "HYDRATION" }],
+    session_stats: { session_duration_minutes: 47, avg_posture_score: 45, time_since_water_minutes: 23, presence_ratio: 0.91 },
   },
   {
-    label: "Housekeeping",
-    overall_risk: "medium",
-    frame_summary: "Loose cable and food/drink item present at workstation.",
-    posture_issues: [],
-    housekeeping_issues: [{ issue: "loose cable on floor", severity: "warning", description: "Trip hazard near station" }],
-    detections: [
-      { category: "WIRES_CABLES", label: "loose cable",  confidence: 0.88, box: { x: 0.05, y: 0.72, w: 0.45, h: 0.18 }, severity: "warning"  },
-      { category: "FOOD_DRINK",   label: "coffee cup",   confidence: 0.93, box: { x: 0.74, y: 0.28, w: 0.14, h: 0.22 }, severity: "critical" },
-      { category: "PERSON",       label: "operator",     confidence: 0.96, box: { x: 0.3,  y: 0.08, w: 0.35, h: 0.78 }, severity: "ok"       },
-    ],
+    label: "Drowsy",
+    presence: true,
+    posture: { score: 55, status: "warning", issues: ["head tilting forward"], description: "Head beginning to droop forward" },
+    eye_strain: { detected: true, severity: "severe", description: "Eyes visibly drooping and half closed" },
+    hydration: { water_visible: true, container_type: "glass", description: "Glass of water visible" },
+    focus_state: { state: "drowsy", confidence: 0.89, description: "Eyelids heavy, head nodding" },
+    environment: { lighting: "poor", monitor_position: "good", issues: ["dim lighting may be contributing to drowsiness"] },
+    overall_wellness: "poor",
+    frame_summary: "User appears drowsy with heavy eyelids",
+    time_based_alerts: [{ type: "drowsy", severity: "critical", message: "You appear to be falling asleep — stand up, splash water on your face, or take a short break", category: "COLLAPSE_RISK" }],
+    session_stats: { session_duration_minutes: 95, avg_posture_score: 61, time_since_water_minutes: 8, presence_ratio: 0.88 },
   },
   {
-    label: "All Clear",
-    overall_risk: "low",
-    frame_summary: "Workstation clear. No hazards detected.",
-    posture_issues: [],
-    housekeeping_issues: [],
-    detections: [
-      { category: "PERSON",     label: "operator",     confidence: 0.96, box: { x: 0.3,  y: 0.1,  w: 0.35, h: 0.75 }, severity: "ok" },
-      { category: "COMPONENTS", label: "PCB assembly", confidence: 0.92, box: { x: 0.55, y: 0.4,  w: 0.3,  h: 0.25 }, severity: "ok" },
-      { category: "TOOLS",      label: "screwdriver",  confidence: 0.84, box: { x: 0.72, y: 0.6,  w: 0.1,  h: 0.18 }, severity: "ok" },
+    label: "Overwork",
+    presence: true,
+    posture: { score: 62, status: "warning", issues: ["slight forward lean"], description: "Mild forward lean, showing fatigue" },
+    eye_strain: { detected: true, severity: "mild", description: "Eyes slightly strained from prolonged screen use" },
+    hydration: { water_visible: true, container_type: "water bottle", description: "Water bottle present" },
+    focus_state: { state: "focused", confidence: 0.78, description: "Still focused but signs of fatigue" },
+    environment: { lighting: "good", monitor_position: "good", issues: [] },
+    overall_wellness: "fair",
+    frame_summary: "Extended session showing fatigue signs",
+    time_based_alerts: [
+      { type: "overwork", severity: "warning", message: "You have been working for over 2.5 hours — consider taking a proper break", category: "OVERWORK" },
+      { type: "stand_up", severity: "info", message: "You have been sitting for 45 minutes — stand up and stretch for 2 minutes", category: "MOVEMENT" },
     ],
+    session_stats: { session_duration_minutes: 152, avg_posture_score: 68, time_since_water_minutes: 12, presence_ratio: 0.93 },
   },
   {
-    label: "Multi Violation",
-    overall_risk: "high",
-    frame_summary: "Multiple critical violations: exposed wiring and drink near components.",
-    posture_issues: [],
-    housekeeping_issues: [
-      { issue: "exposed wiring",              severity: "critical", description: "Electrical hazard at workstation" },
-      { issue: "drink bottle near components", severity: "critical", description: "Liquid contamination risk" },
-    ],
-    detections: [
-      { category: "PERSON",       label: "operator",       confidence: 0.97, box: { x: 0.15, y: 0.05, w: 0.4,  h: 0.8  }, severity: "ok"       },
-      { category: "WIRES_CABLES", label: "exposed wiring", confidence: 0.85, box: { x: 0.6,  y: 0.6,  w: 0.3,  h: 0.25 }, severity: "critical" },
-      { category: "FOOD_DRINK",   label: "drink bottle",   confidence: 0.9,  box: { x: 0.7,  y: 0.2,  w: 0.1,  h: 0.25 }, severity: "critical" },
-    ],
+    label: "Sudden Absence",
+    presence: false,
+    posture: { score: 50, status: "good", issues: [], description: "No person detected" },
+    eye_strain: { detected: false, severity: "none", description: "No person detected" },
+    hydration: { water_visible: false, container_type: "none", description: "Empty desk" },
+    focus_state: { state: "away", confidence: 1.0, description: "Seat is empty" },
+    environment: { lighting: "good", monitor_position: "unknown", issues: [] },
+    overall_wellness: "good",
+    frame_summary: "No person detected at workstation",
+    time_based_alerts: [{ type: "absence_alert", severity: "critical", message: "You suddenly disappeared from view — are you okay?", category: "COLLAPSE_RISK" }],
+    session_stats: { session_duration_minutes: 67, avg_posture_score: 74, time_since_water_minutes: 5, presence_ratio: 0.94 },
   },
 ];
 
 export default function App() {
-  const [tab, setTab]                 = useState("monitor");
-  const [theme, setTheme]             = useState(() => {
+  const [tab, setTab]           = useState("monitor");
+  const [theme, setTheme]       = useState(() => {
     try { return localStorage.getItem(THEME_KEY) || "dark"; } catch { return "dark"; }
   });
   const [latestAnalysis, setLatestAnalysis] = useState(null);
-  const [incidents, setIncidents]     = useState([]);
-  const [stats, setStats]             = useState({ total: 0, unresolved: 0, by_severity: { low: 0, medium: 0, high: 0 } });
-  const [wsConnected, setWsConnected] = useState(false);
+  const [timeAlerts, setTimeAlerts]         = useState([]);
+  const [sessionStats, setSessionStats]     = useState({});
+  const [postureHistory, setPostureHistory] = useState([]);
+  const [incidents, setIncidents]   = useState([]);
+  const [stats, setStats]           = useState({ total: 0, unresolved: 0, by_severity: { low: 0, medium: 0, high: 0 } });
+  const [wsConnected, setWsConnected]       = useState(false);
   const [monitoringActive, setMonitoringActive] = useState(false);
-  const [demoMode, setDemoMode]       = useState(false);
-  const [demoIndex, setDemoIndex]     = useState(0);
+  const [demoMode, setDemoMode]     = useState(false);
+  const [demoIndex, setDemoIndex]   = useState(0);
+
+  const recentAlerts = useRef(new Map());
+
+  // Dedup helper — returns true if the alert should be shown
+  function shouldShowAlert(key) {
+    const last = recentAlerts.current.get(key);
+    if (last && Date.now() - last < ALERT_COOLDOWN_MS) return false;
+    recentAlerts.current.set(key, Date.now());
+    return true;
+  }
+
+  const fireToastsForAnalysis = useCallback((a, alerts) => {
+    if (!a) return;
+
+    // Time-based alerts
+    for (const alert of (alerts ?? [])) {
+      if (!shouldShowAlert(`ta:${alert.type}`)) continue;
+      if (alert.category === "COLLAPSE_RISK") toast.error(alert.message);
+      else if (alert.category === "OVERWORK" || alert.category === "POSTURE") toast.warning(alert.message);
+      else toast.info(alert.message);
+    }
+
+    // GPT-4o direct signals
+    if (a.focus_state?.state === "drowsy" && shouldShowAlert("drowsy")) {
+      toast.error("Drowsiness detected — take a break");
+    }
+    if (a.posture?.status === "poor" && (a.posture?.score ?? 100) < 40 && shouldShowAlert("posture_poor")) {
+      toast.warning(a.posture?.description || "Poor posture detected");
+    }
+    if (a.eye_strain?.severity === "severe" && shouldShowAlert("eye_severe")) {
+      toast.warning("Severe eye strain detected — look away from screen");
+    }
+    if (a.overall_wellness === "poor" && shouldShowAlert("wellness_poor")) {
+      toast.error("Poor wellness detected: " + (a.frame_summary ?? ""));
+    }
+  }, []);
 
   const refreshDashboard = useCallback(async () => {
     const [incidentData, statsData] = await Promise.all([getIncidents(100), getStats()]);
@@ -102,8 +153,7 @@ export default function App() {
   }, [monitoringActive, refreshDashboard]);
 
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle("dark", theme === "dark");
+    document.documentElement.classList.toggle("dark", theme === "dark");
     try { localStorage.setItem(THEME_KEY, theme); } catch {}
   }, [theme]);
 
@@ -130,7 +180,6 @@ export default function App() {
         return [msg.incident, ...prev].slice(0, 100);
       });
       if (msg.stats) setStats(msg.stats);
-      setLatestAnalysis({ incident: msg.incident, coach: msg.coach });
     } else if (msg.event === "incident_resolved") {
       if (!monitoringActive) return;
       setIncidents((prev) =>
@@ -139,6 +188,23 @@ export default function App() {
       if (msg.stats) setStats(msg.stats);
     }
   }, [monitoringActive]);
+
+  const handleAnalysis = useCallback((result) => {
+    if (!result) {
+      setLatestAnalysis(null);
+      setTimeAlerts([]);
+      return;
+    }
+    const { analysis, timeAlerts: ta = [], sessionStats: ss = {}, incident, coach } = result;
+    setLatestAnalysis({ analysis, incident, coach });
+    setTimeAlerts(ta);
+    setSessionStats(ss);
+    setPostureHistory(prev => {
+      const next = [...prev, analysis?.posture?.score ?? 50].slice(-20);
+      return next;
+    });
+    fireToastsForAnalysis(analysis, ta);
+  }, [fireToastsForAnalysis]);
 
   const handleResolveIncident = useCallback(async (incidentId) => {
     const result = await resolveIncident(incidentId);
@@ -150,8 +216,16 @@ export default function App() {
     return result;
   }, [refreshDashboard]);
 
-  const wsRef = useWebSocket("/ws", handleWsMessage);
+  const handleResetSession = useCallback(() => {
+    setIncidents([]);
+    setStats({ total: 0, unresolved: 0, by_severity: { low: 0, medium: 0, high: 0 } });
+    setSessionStats({});
+    setPostureHistory([]);
+    setTimeAlerts([]);
+    setLatestAnalysis(null);
+  }, []);
 
+  const wsRef = useWebSocket("/ws", handleWsMessage);
   useEffect(() => {
     const ws = wsRef.current;
     if (!ws) return;
@@ -160,12 +234,27 @@ export default function App() {
     return () => ws.removeEventListener("close", onClose);
   }, [wsRef]);
 
+  // Demo: fire toasts on scenario switch
+  const prevDemoIndex = useRef(null);
+  useEffect(() => {
+    if (!demoMode) return;
+    if (prevDemoIndex.current === demoIndex) return;
+    prevDemoIndex.current = demoIndex;
+    const scenario = DEMO_SCENARIOS[demoIndex];
+    recentAlerts.current.clear(); // clear dedup on scenario switch
+    fireToastsForAnalysis(scenario, scenario.time_based_alerts);
+  }, [demoMode, demoIndex, fireToastsForAnalysis]);
+
+  const demoScenario = demoMode ? DEMO_SCENARIOS[demoIndex] : null;
+  const displayAnalysis = demoScenario ?? latestAnalysis?.analysis ?? null;
+  const displayTimeAlerts = demoScenario ? demoScenario.time_based_alerts : timeAlerts;
+  const displaySessionStats = demoScenario ? demoScenario.session_stats : sessionStats;
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* ── Header ── */}
       <header className="border-b border-border bg-background">
         <div className="flex items-center justify-between h-14 px-4">
-          {/* Left: brand */}
           <div className="flex items-center gap-2 shrink-0">
           <img
             src={lanceLogo}
@@ -173,20 +262,17 @@ export default function App() {
               className="h-8 w-8 rounded-full object-cover ring-1 ring-border"
           />
             <span className="text-lg font-semibold tracking-tight">Lance</span>
-            <span className="text-xs text-muted-foreground hidden sm:block">Workstation Safety Monitor</span>
+            <span className="text-xs text-muted-foreground hidden sm:block">Personal Wellness Monitor</span>
           </div>
 
-          {/* Center: tabs */}
           <Tabs value={tab} onValueChange={setTab} className="hidden sm:flex">
             <TabsList>
               <TabsTrigger value="monitor">Live Monitor</TabsTrigger>
-              <TabsTrigger value="dashboard">Worker Dashboard</TabsTrigger>
+              <TabsTrigger value="session">Session</TabsTrigger>
             </TabsList>
           </Tabs>
 
-          {/* Right: status + demo + theme */}
           <div className="flex items-center gap-2">
-            {/* WS status */}
             <div className="flex items-center gap-1.5">
               <span className={`h-2 w-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-muted-foreground animate-pulse"}`} />
               <span className="text-xs text-muted-foreground hidden sm:block">
@@ -194,14 +280,12 @@ export default function App() {
               </span>
             </div>
 
-            {/* Unresolved badge */}
             {stats.unresolved > 0 && (
               <Badge variant="destructive" className="animate-pulse">
                 {stats.unresolved} OPEN
               </Badge>
             )}
 
-            {/* Demo toggle */}
             <Button
               variant={demoMode ? "default" : "outline"}
               size="sm"
@@ -210,7 +294,6 @@ export default function App() {
               {demoMode ? "Exit Demo" : "Demo"}
             </Button>
 
-            {/* Theme toggle */}
             <Button
               variant="ghost"
               size="sm"
@@ -221,12 +304,11 @@ export default function App() {
           </div>
         </div>
 
-        {/* Mobile tabs */}
         <div className="sm:hidden px-4 pb-2">
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList className="w-full">
               <TabsTrigger value="monitor" className="flex-1">Monitor</TabsTrigger>
-              <TabsTrigger value="dashboard" className="flex-1">Dashboard</TabsTrigger>
+              <TabsTrigger value="session" className="flex-1">Session</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -253,17 +335,27 @@ export default function App() {
                 </div>
               )}
               <CameraFeed
-                onAnalysis={setLatestAnalysis}
+                onAnalysis={handleAnalysis}
                 onMonitoringChange={setMonitoringActive}
-                demoAnalysis={demoMode ? DEMO_SCENARIOS[demoIndex] : null}
+                demoAnalysis={demoScenario}
               />
               <CoachPanel analysis={latestAnalysis} />
             </div>
-            <AlertPanel incidents={incidents} stats={stats} onResolveIncident={handleResolveIncident} />
+            <WellnessPanel
+              analysis={displayAnalysis}
+              timeAlerts={displayTimeAlerts}
+              sessionStats={displaySessionStats}
+            />
           </div>
         )}
-        {tab === "dashboard" && (
-          <WorkerDashboard incidents={incidents} stats={stats} />
+        {tab === "session" && (
+          <SessionDashboard
+            incidents={incidents}
+            stats={stats}
+            sessionStats={displaySessionStats}
+            postureHistory={postureHistory}
+            onResetSession={handleResetSession}
+          />
         )}
       </main>
     </div>
