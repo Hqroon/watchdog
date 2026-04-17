@@ -93,6 +93,18 @@ npm run dev
 
 Frontend runs at `http://localhost:5173`.
 
+Key frontend packages (all installed via `npm install`):
+
+| Package | Purpose |
+|---------|---------|
+| `react` + `vite` | UI framework + build tool |
+| `tailwindcss` v4 + `@tailwindcss/vite` | Utility CSS (Vite plugin, no PostCSS config needed) |
+| `shadcn` + `radix-ui` | Component library (button, card, badge, tabs, table, etc.) |
+| `class-variance-authority` + `clsx` + `tailwind-merge` | shadcn variant helpers |
+| `lucide-react` | Icons |
+| `sonner` | Toast notifications |
+| `recharts` | Dashboard charts |
+
 ---
 
 ## Environment Variables
