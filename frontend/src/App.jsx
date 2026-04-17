@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 
+const lanceLogo = "/logo.png";
 const THEME_KEY = "lance-theme";
 const ALERT_COOLDOWN_MS = 30_000; // 30 seconds dedup window
 
