@@ -1,0 +1,583 @@
+﻿
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Manrope:wght@400;500;600&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --nav-height: 84px;
+  }
+
+  html {
+    scroll-behavior: auto;
+    scroll-snap-type: y mandatory;
+    scroll-padding-top: var(--nav-height);
+  }
+
+  body {
+    margin: 0;
+    background: #ffffff;
+    overscroll-behavior-y: none;
+    padding-top: var(--nav-height);
+  }
+
+  .lw {
+    font-family: 'Manrope', sans-serif;
+    background: #ffffff;
+    color: #151115;
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  .lw h1, .lw h2, .lw h3, .lw h4 { font-family: 'Sora', sans-serif; }
+
+  /* NAVBAR */
+  .lnav {
+    display: flex; align-items: center; justify-content: space-between;
+    min-height: var(--nav-height);
+    padding: 14px 40px;
+    background: rgba(255,255,255,0.95);
+    border-bottom: 1px solid rgba(21,17,21,0.08);
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    backdrop-filter: blur(8px);
+  }
+  .lnav-logo { display: flex; align-items: center; gap: 10px; }
+  .lnav-logo a { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .lnav-logo img { width: 52px; height: 52px; object-fit: contain; object-position: center; }
+  .lnav-wordmark { font-family: 'Sora', sans-serif; font-size: 26px; font-weight: 700; color: #151115; letter-spacing: -0.5px; }
+  .lnav-links { display: flex; gap: 28px; }
+  .lnav-links a { font-size: 13px; font-weight: 500; color: #726D74; text-decoration: none; transition: color .2s; cursor: pointer; }
+  .lnav-links a:hover { color: #151115; }
+  .lnav-cta {
+    background: #2B1247; color: #F4F3EE; border: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 9px 20px; border-radius: 8px; font-family: 'Manrope', sans-serif;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: background .2s;
+    text-decoration: none;
+  }
+  .lnav-cta:hover { background: #A362C9; }
+
+  /* HERO */
+  .lhero {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 560px);
+    gap: 72px; padding: 110px 40px 100px;
+    max-width: 1200px; margin: 0 auto;
+    align-items: center;
+  }
+  .lhero-left { max-width: 620px; }
+  .lhero h1 {
+    font-size: clamp(64px, 9vw, 112px);
+    font-weight: 700;
+    line-height: 0.95;
+    letter-spacing: -3px;
+    color: #151115;
+    margin-bottom: 18px;
+  }
+  .lhero-tagline {
+    font-size: clamp(22px, 3.2vw, 32px);
+    color: #2B1247;
+    font-weight: 500;
+    line-height: 1.28;
+    max-width: 520px;
+  }
+  .btn-primary {
+    background: #2B1247; color: #F4F3EE;
+    border: none; padding: 13px 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 10px; font-family: 'Manrope', sans-serif;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: background .2s;
+    text-decoration: none;
+  }
+  .btn-primary:hover { background: #A362C9; }
+  .btn-secondary {
+    background: transparent; color: #151115;
+    border: 1.5px solid rgba(21,17,21,0.25);
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 13px 28px; border-radius: 10px;
+    font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: all .2s; text-decoration: none;
+  }
+  .btn-secondary:hover { border-color: #151115; }
+
+  .lhero-right {
+    display: flex;
+    justify-content: center;
+  }
+  .lhero-mark {
+    width: min(560px, 88vw);
+    aspect-ratio: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .lhero-mark img {
+    width: min(500px, 100%);
+    height: auto;
+    object-fit: contain;
+    object-position: center;
+    filter: drop-shadow(0 16px 26px rgba(43,18,71,0.22));
+  }
+
+  /* STATS SECTION */
+  .lstats { background: #2B1247; padding: 80px 40px; }
+  .lstats-inner { max-width: 1200px; margin: 0 auto; }
+  .lsec-label { font-size: 12px; font-weight: 600; color: #A362C9; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .lstats h2 { font-family: 'Sora', sans-serif; font-size: 36px; font-weight: 700; color: #F4F3EE; margin-bottom: 14px; line-height: 1.2; }
+  .lstats-sub { font-size: 15px; color: rgba(244,243,238,0.6); max-width: 560px; line-height: 1.7; margin-bottom: 48px; }
+  .lstats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .lstat-card { background: rgba(244,243,238,0.06); border: 1px solid rgba(244,243,238,0.1); border-radius: 16px; padding: 28px 24px; }
+  .lstat-val { font-family: 'Sora', sans-serif; font-size: 38px; font-weight: 700; color: #A362C9; line-height: 1; margin-bottom: 8px; }
+  .lstat-label { font-size: 13px; font-weight: 600; color: #F4F3EE; margin-bottom: 8px; line-height: 1.4; }
+  .lstat-desc { font-size: 12px; color: rgba(244,243,238,0.5); line-height: 1.6; }
+  .lstats-source { margin-top: 18px; font-size: 11px; color: rgba(244,243,238,0.45); line-height: 1.6; }
+
+  /* SOLUTION SECTION */
+  .lsol { padding: 80px 40px; max-width: 1200px; margin: 0 auto; }
+  .lsol-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; margin-top: 48px; }
+  .lsol h2 { font-family: 'Sora', sans-serif; font-size: 36px; font-weight: 700; color: #151115; line-height: 1.2; margin-bottom: 16px; }
+  .lsol p { font-size: 15px; color: #726D74; line-height: 1.75; margin-bottom: 28px; }
+  .lsol-points { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+  .lsol-point { display: flex; align-items: flex-start; gap: 12px; }
+  .lsol-icon { width: 22px; height: 22px; background: rgba(163,98,201,0.15); border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+  .lsol-icon svg { width: 12px; height: 12px; }
+  .lsol-point-text { font-size: 14px; color: #151115; font-weight: 500; line-height: 1.5; }
+  .lsol-panel { background: #2B1247; border-radius: 20px; padding: 32px; position: relative; overflow: hidden; min-height: 320px; display: flex; flex-direction: column; justify-content: flex-end; }
+  .lsol-panel-glow { position: absolute; top: -60px; right: -60px; width: 200px; height: 200px; background: #A362C9; border-radius: 50%; opacity: 0.15; filter: blur(40px); }
+  .lsol-monitor { background: rgba(244,243,238,0.06); border: 1px solid rgba(244,243,238,0.12); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+  .lsol-monitor-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .lsol-monitor-label { font-size: 11px; color: rgba(244,243,238,0.5); }
+  .lsol-monitor-status { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+  .lsol-monitor-status.active { background: rgba(74,222,128,0.15); color: #4ade80; }
+  .lsol-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .lsol-bar-name { font-size: 11px; color: rgba(244,243,238,0.6); width: 80px; flex-shrink: 0; }
+  .lsol-bar-track { flex: 1; height: 6px; background: rgba(244,243,238,0.1); border-radius: 3px; }
+  .lsol-bar-fill { height: 100%; border-radius: 3px; }
+  .lsol-bar-pct { font-size: 11px; color: rgba(244,243,238,0.5); width: 32px; text-align: right; }
+
+  /* FEATURES */
+  .lfeatures { background: #ffffff; padding: 80px 40px; }
+  .lfeatures-inner { max-width: 1200px; margin: 0 auto; }
+  .lfeatures-header { margin-bottom: 48px; }
+  .lfeatures h2 { font-family: 'Sora', sans-serif; font-size: 36px; font-weight: 700; color: #151115; margin-bottom: 12px; }
+  .lfeatures-sub { font-size: 15px; color: #726D74; }
+  .lfeatures-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .lfeature-card { background: #fff; border: 1px solid rgba(21,17,21,0.08); border-radius: 16px; padding: 28px; transition: transform .2s, box-shadow .2s; cursor: default; }
+  .lfeature-card:hover { transform: translateY(-3px); box-shadow: 0 8px 32px rgba(43,18,71,0.08); }
+  .lfeature-icon { width: 44px; height: 44px; background: rgba(163,98,201,0.1); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
+  .lfeature-icon svg { width: 22px; height: 22px; }
+  .lfeature-card h4 { font-family: 'Sora', sans-serif; font-size: 16px; font-weight: 600; color: #151115; margin-bottom: 10px; }
+  .lfeature-card p { font-size: 13px; color: #726D74; line-height: 1.65; }
+
+  /* DEMO CTA */
+  .ldemo { background: #151115; padding: 80px 40px; text-align: center; }
+  .ldemo-inner { max-width: 600px; margin: 0 auto; }
+  .ldemo h2 { font-family: 'Sora', sans-serif; font-size: 40px; font-weight: 700; color: #F4F3EE; margin-bottom: 16px; }
+  .ldemo p { font-size: 16px; color: rgba(244,243,238,0.55); line-height: 1.7; margin-bottom: 36px; }
+  .btn-demo { background: #A362C9; color: #F4F3EE; border: none; padding: 16px 40px; border-radius: 12px; font-family: 'Manrope', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; transition: background .2s; letter-spacing: 0.2px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+  .btn-demo:hover { background: #8B4DB0; }
+  .ldemo-note { font-size: 12px; color: rgba(244,243,238,0.3); margin-top: 14px; }
+
+  /* TEAM */
+  .lteam { padding: 80px 40px; max-width: 1200px; margin: 0 auto; }
+  .lteam h2 { font-family: 'Sora', sans-serif; font-size: 36px; font-weight: 700; color: #151115; margin-bottom: 12px; }
+  .lteam-sub { font-size: 15px; color: #726D74; margin-bottom: 48px; }
+  .lteam-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .lteam-card { background: #fff; border: 1px solid rgba(21,17,21,0.08); border-radius: 16px; padding: 28px 24px; text-align: center; transition: transform .2s; }
+  .lteam-card:hover { transform: translateY(-3px); }
+  .lteam-avatar { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, #2B1247, #A362C9); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-family: 'Sora', sans-serif; font-size: 22px; font-weight: 700; color: #F4F3EE; }
+  .lteam-name { font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 600; color: #151115; margin-bottom: 4px; }
+  .lteam-role { font-size: 12px; font-weight: 600; color: #A362C9; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+  .lteam-bio { font-size: 12px; color: #726D74; line-height: 1.65; }
+
+  /* FOOTER */
+  .lfooter { background: #151115; padding: 48px 40px 32px; }
+  .lfooter-inner { max-width: 1200px; margin: 0 auto; }
+  .lfooter-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 40px; }
+  .lfooter-brand {}
+  .lfooter-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .lfooter-logo img { width: 44px; height: 44px; object-fit: contain; object-position: center; }
+  .lfooter-wordmark { font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 700; color: #F4F3EE; }
+  .lfooter-tagline { font-size: 13px; color: rgba(244,243,238,0.4); max-width: 220px; line-height: 1.6; }
+  .lfooter-links { display: flex; gap: 32px; }
+  .lfooter-links a { font-size: 13px; color: rgba(244,243,238,0.45); text-decoration: none; cursor: pointer; }
+  .lfooter-links a:hover { color: #F4F3EE; }
+  .lfooter-bottom { border-top: 1px solid rgba(244,243,238,0.08); padding-top: 24px; display: flex; justify-content: space-between; align-items: center; }
+  .lfooter-copy { font-size: 12px; color: rgba(244,243,238,0.3); }
+  .lfooter-contact { font-size: 12px; color: rgba(244,243,238,0.3); }
+
+  /* SECTION WRAPPER */
+  .lsec-wrap { max-width: 1200px; margin: 0 auto; }
+
+  .lsnap {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    min-height: calc(100svh - var(--nav-height));
+    display: flex;
+    align-items: center;
+    position: relative;
+    overflow: visible;
+  }
+  .lsnap > * { width: 100%; }
+  .parallax-shift {
+    transform: translate3d(0, var(--parallax-offset, 0px), 0);
+    transition: transform .06s linear;
+    will-change: transform;
+  }
+  .lsnap-alt { background: #F7F8FC; }
+  .lteam-pane {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .lteam-pane .lteam {
+    flex: 1;
+    padding: 44px 40px 24px;
+  }
+  .lteam-pane .lfooter {
+    padding: 26px 40px 20px;
+  }
+
+  @media (max-width: 980px) {
+    html { scroll-snap-type: none; }
+    body { padding-top: var(--nav-height); }
+    .lsnap {
+      min-height: auto;
+      height: auto;
+      display: block;
+    }
+    .parallax-shift { transform: none !important; }
+    .lhero {
+      grid-template-columns: 1fr;
+      gap: 28px;
+      padding: 72px 24px;
+    }
+    .lhero h1 { letter-spacing: -2px; }
+    .lhero-tagline { max-width: 100%; }
+    .lhero-mark {
+      width: min(400px, 90vw);
+      margin: 0 auto;
+      padding: 0;
+    }
+    .lnav-logo img { width: 42px; height: 42px; }
+    .lnav-wordmark { font-size: 22px; }
+    .lnav {
+      padding: 14px 24px;
+      gap: 10px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .lnav-links { width: auto; gap: 18px; overflow-x: auto; padding-bottom: 0; }
+    .lteam-pane .lteam { padding: 80px 24px 20px; }
+    .lteam-pane .lfooter { padding: 22px 24px 18px; }
+  }
+</style>
+
+<div class="lw">
+
+  <!-- NAVBAR -->
+  <nav class="lnav">
+    <div class="lnav-logo">
+      <a href="#home">
+        <img src="./Sentry Logo Final.png" alt="Lance logo">
+        <span class="lnav-wordmark">Lance</span>
+      </a>
+    </div>
+    <div class="lnav-links">
+      <a href="#home">Home</a><a href="#problem">Problem</a><a href="#solution">Solution</a><a href="#features">Features</a><a href="#team">Team</a><a href="#demo">Demo</a>
+    </div>
+    <a class="lnav-cta" href="#demo">Try Demo</a>
+  </nav>
+
+  <!-- HERO -->
+  <section id="home" class="lsnap parallax-section" data-depth="0.16" style="background: #ffffff; padding: 0;">
+    <div class="parallax-shift">
+      <div class="lhero">
+        <div class="lhero-left">
+          <h1>Lance</h1>
+          <div class="lhero-tagline">Protecting you through every daily quest.</div>
+          <p style="margin-top:18px;max-width:560px;font-size:17px;line-height:1.7;color:#544f57;">Your AI-powered personal safety coach for computer-based work, helping prevent posture pain, eye strain, dehydration, and sedentary overload before they become long-term harm.</p>
+        </div>
+        <div class="lhero-right">
+          <div class="lhero-mark">
+            <img src="./Sentry Logo Final.png" alt="Lance logo">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section id="problem" class="lstats lsnap parallax-section" data-depth="0.08">
+    <div class="parallax-shift">
+        <div class="lstats-inner">
+        <div class="lsec-label">The Problem</div>
+        <h2>Desk work can hurt you quietly, every single day.</h2>
+        <div class="lstats-sub">Lance is built for the worker directly, not generic policy checklists. We focus on the daily risks that build up over time: posture stress, eye fatigue, missed breaks, dehydration, and too much sitting.</div>
+        <div class="lstats-grid">
+          <div class="lstat-card">
+            <div class="lstat-val">66%</div>
+            <div class="lstat-label">Computer workers report eye strain symptoms</div>
+            <div class="lstat-desc">Computer vision syndrome pooled prevalence in a 2023 meta-analysis.</div>
+          </div>
+          <div class="lstat-card">
+            <div class="lstat-val">73.13%</div>
+            <div class="lstat-label">Report work-related muscle and joint pain</div>
+            <div class="lstat-desc">Pooled prevalence among computer-using office workers (2025 review).</div>
+          </div>
+          <div class="lstat-card">
+            <div class="lstat-val">4.49x</div>
+            <div class="lstat-label">Higher odds of pain with awkward posture</div>
+            <div class="lstat-desc">Workers in poor posture are far more likely to develop neck/back/shoulder issues.</div>
+          </div>
+          <div class="lstat-card">
+            <div class="lstat-val">4.07x</div>
+            <div class="lstat-label">Higher odds of pain without regular breaks</div>
+            <div class="lstat-desc">Skipping short recovery breaks significantly increases strain-related risk.</div>
+          </div>
+        </div>
+        <div class="lstats-source">Stats source highlights: Anbesu & Lema (Scientific Reports, 2023); Demissie et al. (Discover Social Science and Health, 2025).</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SOLUTION -->
+  <section id="solution" class="lsnap lsnap-alt parallax-section" data-depth="0.11" style="padding: 80px 0;">
+    <div class="parallax-shift">
+      <div class="lsol">
+        <div class="lsec-label">The Solution</div>
+        <div class="lsol-grid">
+          <div>
+            <h2>Lance coaches you in real time while you work.</h2>
+            <p>Instead of one-size-fits-all training, Lance provides personalized in-the-moment coaching directly through your computer, helping you avoid strain before it turns into pain.</p>
+            <p>As your day unfolds, Lance watches for early risk patterns and gives simple, supportive nudges that are specific to you.</p>
+            <ul class="lsol-points">
+              <li class="lsol-point">
+                <div class="lsol-icon"><svg viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#A362C9" stroke-width="1.5"/><path d="M4 6l1.5 1.5L8 4" stroke="#A362C9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <span class="lsol-point-text">Posture and eye-health checks throughout your work session</span>
+              </li>
+              <li class="lsol-point">
+                <div class="lsol-icon"><svg viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#A362C9" stroke-width="1.5"/><path d="M4 6l1.5 1.5L8 4" stroke="#A362C9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <span class="lsol-point-text">Hydration, break, and movement reminders at the right moment</span>
+              </li>
+              <li class="lsol-point">
+                <div class="lsol-icon"><svg viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#A362C9" stroke-width="1.5"/><path d="M4 6l1.5 1.5L8 4" stroke="#A362C9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <span class="lsol-point-text">Clear, friendly coaching that helps you build safer habits over time</span>
+              </li>
+            </ul>
+            <p>Beyond live nudges, Lance gives trend insights so you can spot recurring risks early and improve your daily routine proactively.</p>
+          </div>
+          <div class="lsol-panel">
+            <div class="lsol-panel-glow"></div>
+            <div class="lsol-monitor">
+              <div class="lsol-monitor-row">
+                <span class="lsol-monitor-label">AI Detection Engine</span>
+                <span class="lsol-monitor-status active">Running</span>
+              </div>
+              <div class="lsol-bar-row">
+                <span class="lsol-bar-name">Posture</span>
+                <div class="lsol-bar-track"><div class="lsol-bar-fill" style="width:72%;background:#dc2626;"></div></div>
+                <span class="lsol-bar-pct">72%</span>
+              </div>
+              <div class="lsol-bar-row">
+                <span class="lsol-bar-name">Eye strain</span>
+                <div class="lsol-bar-track"><div class="lsol-bar-fill" style="width:89%;background:#16a34a;"></div></div>
+                <span class="lsol-bar-pct">89%</span>
+              </div>
+              <div class="lsol-bar-row">
+                <span class="lsol-bar-name">Break cadence</span>
+                <div class="lsol-bar-track"><div class="lsol-bar-fill" style="width:55%;background:#d97706;"></div></div>
+                <span class="lsol-bar-pct">55%</span>
+              </div>
+            </div>
+            <div style="font-family:Sora,sans-serif;font-size:13px;font-weight:600;color:rgba(244,243,238,0.4);letter-spacing:0.5px;text-transform:uppercase;">live coaching active - worker-first prevention enabled</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features" class="lfeatures lsnap parallax-section" data-depth="0.13">
+    <div class="parallax-shift">
+      <div class="lfeatures-inner">
+        <div class="lfeatures-header">
+          <div class="lsec-label">Platform</div>
+          <h2>Personal Coaching Features</h2>
+          <div class="lfeatures-sub">Built for computer-based workers who want to stay healthy, focused, and pain-free.</div>
+        </div>
+        <div class="lfeatures-grid">
+          <div class="lfeature-card">
+            <div class="lfeature-icon"><svg viewBox="0 0 22 22" fill="none"><path d="M11 3C6.58 3 3 6.58 3 11s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8z" stroke="#A362C9" stroke-width="1.5"/><path d="M11 7v4l3 3" stroke="#A362C9" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+            <h4>Posture Coach</h4>
+            <p>Detects early posture drift and gives instant cues to reduce neck, shoulder, and back strain.</p>
+          </div>
+          <div class="lfeature-card">
+            <div class="lfeature-icon"><svg viewBox="0 0 22 22" fill="none"><path d="M4 4h14v10H4z" stroke="#A362C9" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 18h6M11 14v4" stroke="#A362C9" stroke-width="1.5" stroke-linecap="round"/><circle cx="17" cy="6" r="3" fill="#dc2626"/></svg></div>
+            <h4>Eye Wellness Checks</h4>
+            <p>Tracks screen exposure patterns and reminds you to rest your eyes before fatigue builds up.</p>
+          </div>
+          <div class="lfeature-card">
+            <div class="lfeature-icon"><svg viewBox="0 0 22 22" fill="none"><rect x="3" y="3" width="16" height="16" rx="3" stroke="#A362C9" stroke-width="1.5"/><path d="M7 12l3 3 5-5" stroke="#A362C9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h4>Hydration Nudges</h4>
+            <p>Provides simple prompts that help you maintain healthier hydration throughout your shift.</p>
+          </div>
+          <div class="lfeature-card">
+            <div class="lfeature-icon"><svg viewBox="0 0 22 22" fill="none"><path d="M11 2L3 6v6c0 4.42 3.47 8.56 8 9.93C16.53 20.56 20 16.42 20 12V6l-9-4z" stroke="#A362C9" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
+            <h4>Break + Move Prompts</h4>
+            <p>Spots long sedentary periods and prompts short movement breaks to protect your body.</p>
+          </div>
+          <div class="lfeature-card">
+            <div class="lfeature-icon"><svg viewBox="0 0 22 22" fill="none"><circle cx="11" cy="8" r="4" stroke="#A362C9" stroke-width="1.5"/><path d="M4 19c0-3.87 3.13-7 7-7s7 3.13 7 7" stroke="#A362C9" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+            <h4>Noise + Environment Signals</h4>
+            <p>Flags unhealthy exposure patterns that can wear down concentration and overall wellbeing.</p>
+          </div>
+          <div class="lfeature-card">
+            <div class="lfeature-icon"><svg viewBox="0 0 22 22" fill="none"><rect x="3" y="3" width="7" height="7" rx="2" stroke="#A362C9" stroke-width="1.5"/><rect x="12" y="3" width="7" height="7" rx="2" stroke="#A362C9" stroke-width="1.5"/><rect x="3" y="12" width="7" height="7" rx="2" stroke="#A362C9" stroke-width="1.5"/><rect x="12" y="12" width="7" height="7" rx="2" stroke="#A362C9" stroke-width="1.5"/></svg></div>
+            <h4>Personal Trend Insights</h4>
+            <p>See your own recurring risk patterns so you can improve week by week, not just react in the moment.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEMO CTA -->
+  <section id="demo" class="ldemo lsnap parallax-section" data-depth="0.08">
+    <div class="parallax-shift">
+      <div class="ldemo-inner">
+        <h2>See Lance coach you in action</h2>
+        <p>Explore the demo to experience real-time, worker-first coaching designed to prevent daily strain before it becomes long-term pain.</p>
+        <a class="btn-demo" href="#home">Launch Demo -></a>
+        <div class="ldemo-note">No signup required - Built for testing and preview</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TEAM -->
+  <section id="team" class="lsnap lsnap-alt parallax-section" data-depth="0.1" style="padding: 0;">
+    <div class="parallax-shift">
+      <div class="lteam-pane">
+        <div class="lteam">
+          <div class="lsec-label">Who We Are</div>
+          <h2>Meet the Team</h2>
+          <div class="lteam-sub">Lance is built by a team focused on safety, intelligent systems, and real-world operational impact.</div>
+          <div class="lteam-grid">
+            <div class="lteam-card">
+              <div class="lteam-avatar">HK</div>
+              <div class="lteam-name">Hafi Shaheer Khan</div>
+              <div class="lteam-role">Co-Founder</div>
+              <div class="lteam-bio">Hafi drives Lance's vision for intelligent, scalable safety systems that protect people at work.</div>
+            </div>
+            <div class="lteam-card">
+              <div class="lteam-avatar">HH</div>
+              <div class="lteam-name">Haroon Hadeem</div>
+              <div class="lteam-role">Co-Founder</div>
+              <div class="lteam-bio">Haroon brings deep expertise in AI and operational strategy to Lance's core platform.</div>
+            </div>
+            <div class="lteam-card">
+              <div class="lteam-avatar">TY</div>
+              <div class="lteam-name">Tommy Ye</div>
+              <div class="lteam-role">Full Stack Developer</div>
+              <div class="lteam-bio">Tommy builds the systems and interfaces that bring Lance's safety intelligence to life.</div>
+            </div>
+            <div class="lteam-card">
+              <div class="lteam-avatar">BG</div>
+              <div class="lteam-name">Birkley Grunewald</div>
+              <div class="lteam-role">Head of Operations</div>
+              <div class="lteam-bio">Birkley ensures Lance runs smoothly across teams, partners, and day-to-day operations.</div>
+            </div>
+          </div>
+        </div>
+        <!-- FOOTER -->
+        <footer class="lfooter">
+          <div class="lfooter-inner">
+            <div class="lfooter-top">
+              <div class="lfooter-brand">
+                <div class="lfooter-logo">
+                  <img src="./Sentry Logo Final.png" alt="Lance logo">
+                  <span class="lfooter-wordmark">Lance</span>
+                </div>
+                <div class="lfooter-tagline">AI-powered personal safety coaching for modern computer-based workers.</div>
+              </div>
+              <div class="lfooter-links">
+                <a href="#home">Home</a><a href="#features">Features</a><a href="#team">Team</a><a href="#demo">Demo</a>
+              </div>
+            </div>
+            <div class="lfooter-bottom">
+              <span class="lfooter-copy">&copy; 2026 Lance. All rights reserved.</span>
+              <span class="lfooter-contact">contact@lance.ai</span>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    (() => {
+      const navAnchors = document.querySelectorAll('.lnav a[href^="#"], .lfooter a[href^="#"]');
+      navAnchors.forEach((anchor) => {
+        anchor.addEventListener('click', (event) => {
+          const targetId = anchor.getAttribute('href');
+          if (!targetId || targetId === '#') {
+            return;
+          }
+          const target = document.querySelector(targetId);
+          if (!target) {
+            return;
+          }
+          event.preventDefault();
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return;
+      }
+
+      const sections = document.querySelectorAll('.parallax-section');
+      const parallaxBoost = 1.9;
+      const updateParallax = () => {
+        const viewportMid = window.scrollY + (window.innerHeight / 2);
+        sections.forEach((section) => {
+          const layer = section.querySelector('.parallax-shift');
+          if (!layer) {
+            return;
+          }
+
+          const rect = section.getBoundingClientRect();
+          // Avoid clipping on panes that are taller than the viewport.
+          if (rect.height > window.innerHeight * 0.98) {
+            layer.style.setProperty('--parallax-offset', '0px');
+            return;
+          }
+
+          const sectionMid = window.scrollY + rect.top + (rect.height / 2);
+          const depth = Number(section.dataset.depth || 0.1);
+          const rawOffset = (viewportMid - sectionMid) * depth * parallaxBoost;
+          const clampedOffset = Math.max(-58, Math.min(58, rawOffset));
+          layer.style.setProperty('--parallax-offset', `${clampedOffset}px`);
+        });
+      };
+
+      let ticking = false;
+      window.addEventListener('scroll', () => {
+        if (!ticking) {
+          window.requestAnimationFrame(() => {
+            updateParallax();
+            ticking = false;
+          });
+          ticking = true;
+        }
+      }, { passive: true });
+
+      window.addEventListener('resize', updateParallax);
+      updateParallax();
+    })();
+  </script>
+
+</div>
+
