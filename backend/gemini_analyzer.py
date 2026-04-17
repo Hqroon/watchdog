@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-MODEL_NAME = "gemini-1.5-flash"
+MODEL_NAME = "gemini-1.5-flash-latest"
 
 SAFETY_PROMPT = """
 You are an AI-powered workstation safety inspector for a smart manufacturing facility.
