@@ -89,7 +89,6 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
     } catch (err) {
       if (err?.name === "AbortError" || sessionId !== sessionRef.current) return;
       setStatus("error");
-      onAnalysis?.({ networkError: true });
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
       if (sessionId === sessionRef.current) setAnalyzing(false);

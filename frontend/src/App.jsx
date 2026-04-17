@@ -9,13 +9,10 @@ import { getIncidents, getStats, resolveIncident } from "./api/gemini.js";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { ActivityLogProvider, useActivityLog } from "./stores/activityLog.js";
 
 const lanceLogo = "/logo.png";
 const THEME_KEY = "lance-theme";
-const ALERT_COOLDOWN_MS = 30_000;
-const LOG_COOLDOWN_MS   = 6_000;
+const ALERT_COOLDOWN_MS = 30_000; // 30 seconds dedup window
 
 // ---------------------------------------------------------------------------
 // Demo scenarios
@@ -108,10 +105,7 @@ const DEMO_SCENARIOS = [
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Inner app — needs ActivityLogProvider in tree above it
-// ---------------------------------------------------------------------------
-function AppContent() {
+export default function App() {
   const [tab, setTab]           = useState("monitor");
   const [theme, setTheme]       = useState(() => {
     try { return localStorage.getItem(THEME_KEY) || "dark"; } catch { return "dark"; }
@@ -126,30 +120,21 @@ function AppContent() {
   const [monitoringActive, setMonitoringActive] = useState(false);
   const [demoMode, setDemoMode]     = useState(false);
   const [demoIndex, setDemoIndex]   = useState(0);
-  const [criticalFlash, setCriticalFlash]   = useState(false);
 
-  const { logs, addLog, clearLogs } = useActivityLog();
   const recentAlerts = useRef(new Map());
 
-  function shouldShowAlert(key, cooldownMs = ALERT_COOLDOWN_MS) {
+  // Dedup helper — returns true if the alert should be shown
+  function shouldShowAlert(key) {
     const last = recentAlerts.current.get(key);
-    if (last && Date.now() - last < cooldownMs) return false;
+    if (last && Date.now() - last < ALERT_COOLDOWN_MS) return false;
     recentAlerts.current.set(key, Date.now());
     return true;
   }
 
-  // Flash badge on new critical log entry
-  useEffect(() => {
-    if (logs[0]?.severity === "critical") {
-      setCriticalFlash(true);
-      const t = setTimeout(() => setCriticalFlash(false), 600);
-      return () => clearTimeout(t);
-    }
-  }, [logs[0]?.severity, logs.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const fireToastsForAnalysis = useCallback((a, alerts) => {
     if (!a) return;
 
+    // Time-based alerts
     for (const alert of (alerts ?? [])) {
       if (!shouldShowAlert(`ta:${alert.type}`)) continue;
       if (alert.category === "COLLAPSE_RISK") toast.error(alert.message);
@@ -161,6 +146,7 @@ function AppContent() {
       else toast.info(alert.message);
     }
 
+    // GPT-4o direct signals
     if (a.focus_state?.state === "drowsy" && shouldShowAlert("drowsy")) {
       toast.error("Drowsiness detected — take a break");
     }
@@ -182,106 +168,7 @@ function AppContent() {
     if (a.overall_wellness === "poor" && shouldShowAlert("wellness_poor")) {
       toast.error("Poor wellness detected: " + (a.frame_summary ?? ""));
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const fireLogsForAnalysis = useCallback((a, timeAlertsList) => {
-    if (!a) return;
-
-    const posture   = a.posture          ?? {};
-    const eyeStrain = a.eye_strain       ?? {};
-    const eyeOpen   = a.eye_openness     ?? {};
-    const prox      = a.screen_proximity ?? {};
-    const focus     = a.focus_state      ?? {};
-    const hydration = a.hydration        ?? {};
-    const wellness  = a.overall_wellness ?? "good";
-    const presence  = a.presence         ?? false;
-    const summary   = a.frame_summary    ?? "";
-
-    // POSTURE
-    if (posture.status === "good" && (posture.score ?? 0) >= 80) {
-      addLog("POSTURE", "good", "Good posture", posture.description);
-    } else if (posture.status === "warning") {
-      if (shouldShowAlert("log_Posture warning", LOG_COOLDOWN_MS))
-        addLog("POSTURE", "warning", "Posture warning", posture.description);
-      (posture.issues ?? []).forEach(issue => {
-        if (shouldShowAlert("log_" + issue, LOG_COOLDOWN_MS))
-          addLog("POSTURE", "warning", issue, posture.description);
-      });
-    } else if (posture.status === "poor") {
-      if (shouldShowAlert("log_Poor posture detected", LOG_COOLDOWN_MS))
-        addLog("POSTURE", "critical", "Poor posture detected", posture.description);
-      (posture.issues ?? []).forEach(issue => {
-        if (shouldShowAlert("log_" + issue, LOG_COOLDOWN_MS))
-          addLog("POSTURE", "critical", issue, posture.description);
-      });
-    }
-
-    // EYE STRAIN
-    if (eyeStrain.severity === "mild") {
-      if (shouldShowAlert("log_Mild eye strain", LOG_COOLDOWN_MS))
-        addLog("EYE_STRAIN", "warning", "Mild eye strain", eyeStrain.description);
-    } else if (eyeStrain.severity === "severe") {
-      if (shouldShowAlert("log_Severe eye strain", LOG_COOLDOWN_MS))
-        addLog("EYE_STRAIN", "critical", "Severe eye strain", eyeStrain.description);
-    }
-
-    // EYE OPENNESS
-    if (eyeOpen.sore_eyes_likely) {
-      if (shouldShowAlert("log_Sore eyes detected", LOG_COOLDOWN_MS))
-        addLog("EYE_HEALTH", "warning", "Sore eyes detected", eyeOpen.description);
-    }
-    if ((eyeOpen.openness_percent ?? 100) < 30) {
-      const t = `Eyes nearly closed — ${eyeOpen.openness_percent ?? 0}% open`;
-      if (shouldShowAlert("log_" + t, LOG_COOLDOWN_MS))
-        addLog("EYE_HEALTH", "critical", t, eyeOpen.description);
-    }
-    if (eyeOpen.status === "squinting") {
-      const t = `Squinting detected — ${eyeOpen.openness_percent ?? 0}% eye openness`;
-      if (shouldShowAlert("log_" + t, LOG_COOLDOWN_MS))
-        addLog("EYE_HEALTH", "warning", t, eyeOpen.description);
-    }
-
-    // SCREEN PROXIMITY
-    if (prox.status === "too_close") {
-      if (shouldShowAlert("log_Too close to screen", LOG_COOLDOWN_MS))
-        addLog("SCREEN_DISTANCE", "warning", "Too close to screen", prox.description);
-    } else if (prox.status === "close") {
-      if (shouldShowAlert("log_Slightly close to screen", LOG_COOLDOWN_MS))
-        addLog("SCREEN_DISTANCE", "info", "Slightly close to screen", prox.description);
-    }
-
-    // FOCUS
-    if (focus.state === "drowsy") {
-      if (shouldShowAlert("log_Drowsiness detected", LOG_COOLDOWN_MS))
-        addLog("DROWSINESS", "critical", "Drowsiness detected", focus.description);
-    } else if (focus.state === "distracted") {
-      if (shouldShowAlert("log_Distraction detected", LOG_COOLDOWN_MS))
-        addLog("FOCUS", "info", "Distraction detected", focus.description);
-    }
-
-    // HYDRATION
-    if (!hydration.water_visible) {
-      if (shouldShowAlert("log_No water visible", LOG_COOLDOWN_MS))
-        addLog("HYDRATION", "info", "No water visible", hydration.description);
-    } else {
-      addLog("HYDRATION", "good", `Water visible — ${hydration.container_type ?? ""}`, hydration.description);
-    }
-
-    // WELLNESS
-    if (wellness === "poor") {
-      if (shouldShowAlert("log_Poor overall wellness", LOG_COOLDOWN_MS))
-        addLog("WELLNESS", "critical", "Poor overall wellness", summary);
-    } else if (wellness === "good" && presence) {
-      addLog("WELLNESS", "good", "Wellness check passed", summary);
-    }
-
-    // TIME-BASED ALERTS
-    for (const item of (timeAlertsList ?? [])) {
-      const title = item.type.replace(/_/g, " ");
-      if (shouldShowAlert("log_ta_" + title, LOG_COOLDOWN_MS))
-        addLog(item.category, item.severity, title, item.message);
-    }
-  }, [addLog]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const refreshDashboard = useCallback(async () => {
     const [incidentData, statsData] = await Promise.all([getIncidents(100), getStats()]);
@@ -339,18 +226,16 @@ function AppContent() {
       setTimeAlerts([]);
       return;
     }
-    if (result.networkError) {
-      addLog("SYSTEM", "critical", "Analysis failed", "Could not reach backend — check connection");
-      return;
-    }
     const { analysis, timeAlerts: ta = [], sessionStats: ss = {}, incident, coach } = result;
     setLatestAnalysis({ analysis, incident, coach });
     setTimeAlerts(ta);
     setSessionStats(ss);
-    setPostureHistory(prev => [...prev, analysis?.posture?.score ?? 50].slice(-20));
+    setPostureHistory(prev => {
+      const next = [...prev, analysis?.posture?.score ?? 50].slice(-20);
+      return next;
+    });
     fireToastsForAnalysis(analysis, ta);
-    fireLogsForAnalysis(analysis, ta);
-  }, [fireToastsForAnalysis, fireLogsForAnalysis, addLog]);
+  }, [fireToastsForAnalysis]);
 
   const handleResolveIncident = useCallback(async (incidentId) => {
     const result = await resolveIncident(incidentId);
@@ -369,8 +254,7 @@ function AppContent() {
     setPostureHistory([]);
     setTimeAlerts([]);
     setLatestAnalysis(null);
-    clearLogs();
-  }, [clearLogs]);
+  }, []);
 
   const wsRef = useWebSocket("/ws", handleWsMessage);
   useEffect(() => {
@@ -381,21 +265,20 @@ function AppContent() {
     return () => ws.removeEventListener("close", onClose);
   }, [wsRef]);
 
-  // Demo: fire toasts and logs on scenario switch
+  // Demo: fire toasts on scenario switch
   const prevDemoIndex = useRef(null);
   useEffect(() => {
     if (!demoMode) return;
     if (prevDemoIndex.current === demoIndex) return;
     prevDemoIndex.current = demoIndex;
     const scenario = DEMO_SCENARIOS[demoIndex];
-    recentAlerts.current.clear();
+    recentAlerts.current.clear(); // clear dedup on scenario switch
     fireToastsForAnalysis(scenario, scenario.time_based_alerts);
-    fireLogsForAnalysis(scenario, scenario.time_based_alerts);
-  }, [demoMode, demoIndex, fireToastsForAnalysis, fireLogsForAnalysis]);
+  }, [demoMode, demoIndex, fireToastsForAnalysis]);
 
-  const demoScenario       = demoMode ? DEMO_SCENARIOS[demoIndex] : null;
-  const displayAnalysis    = demoScenario ?? latestAnalysis?.analysis ?? null;
-  const displayTimeAlerts  = demoScenario ? demoScenario.time_based_alerts : timeAlerts;
+  const demoScenario = demoMode ? DEMO_SCENARIOS[demoIndex] : null;
+  const displayAnalysis = demoScenario ?? latestAnalysis?.analysis ?? null;
+  const displayTimeAlerts = demoScenario ? demoScenario.time_based_alerts : timeAlerts;
   const displaySessionStats = demoScenario ? demoScenario.session_stats : sessionStats;
 
   return (
@@ -421,19 +304,6 @@ function AppContent() {
           </Tabs>
 
           <div className="flex items-center gap-2">
-            {/* Live event counter */}
-            {logs.length > 0 && (
-              <Badge
-                variant="secondary"
-                className={cn(
-                  "transition-colors duration-500 tabular-nums",
-                  criticalFlash && "bg-destructive text-destructive-foreground"
-                )}
-              >
-                {logs.length} events
-              </Badge>
-            )}
-
             <div className="flex items-center gap-1.5">
               <span className={`h-2 w-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-muted-foreground animate-pulse"}`} />
               <span className="text-xs text-muted-foreground hidden sm:block">
@@ -480,6 +350,7 @@ function AppContent() {
         {tab === "monitor" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 flex flex-col gap-4">
+              {/* Demo scenario buttons */}
               {demoMode && (
                 <div className="flex items-center gap-2 flex-wrap">
                   {DEMO_SCENARIOS.map((s, i) => (
@@ -519,13 +390,5 @@ function AppContent() {
         )}
       </main>
     </div>
-  );
-}
-
-export default function App() {
-  return (
-    <ActivityLogProvider>
-      <AppContent />
-    </ActivityLogProvider>
   );
 }
