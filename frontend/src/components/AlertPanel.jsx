@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { BUTTON, SEVERITY, SURFACE } from "../ui/tokens.js";
+import Badge from "../ui/Badge.jsx";
+import Card from "../ui/Card.jsx";
+import SectionHeader from "../ui/SectionHeader.jsx";
 
 function formatTime(ts) {
   const d = new Date(ts * 1000);
@@ -20,10 +23,14 @@ export default function AlertPanel({ incidents, stats }) {
   });
 
   return (
-    <div className={`${SURFACE.card} flex flex-col h-full max-h-[80vh]`}>
+    <Card className="flex h-full max-h-[80vh] min-h-[20rem] flex-col xl:sticky xl:top-4">
       {/* Stats */}
       <div className={`px-4 pt-4 pb-2 border-b ${SURFACE.sectionBorder}`}>
-        <h2 className="text-sm font-bold text-gray-300 mb-2 uppercase tracking-wide">Incidents</h2>
+        <SectionHeader
+          title="Incidents"
+          subtitle="Track live issues and resolve them as the workstation changes."
+          className="mb-3"
+        />
         <div className="grid grid-cols-3 gap-2 text-center text-xs">
           <div className="bg-gray-800 rounded-lg py-2">
             <p className="text-lg font-bold text-white">{stats.total}</p>
@@ -70,9 +77,9 @@ export default function AlertPanel({ incidents, stats }) {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-1">
-                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${SEVERITY[inc.severity]?.pill ?? SEVERITY.low.pill}`}>
+                    <Badge className={SEVERITY[inc.severity]?.pill ?? SEVERITY.low.pill}>
                       {inc.severity}
-                    </span>
+                    </Badge>
                     <span className={`text-xs capitalize ${SURFACE.mutedText}`}>{inc.category}</span>
                     <span className="ml-auto text-xs text-gray-500">{formatTime(inc.timestamp)}</span>
                   </div>
@@ -91,6 +98,6 @@ export default function AlertPanel({ incidents, stats }) {
           ))
         )}
       </ul>
-    </div>
+    </Card>
   );
 }

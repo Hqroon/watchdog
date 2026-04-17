@@ -2,6 +2,9 @@ import { useState, useCallback } from "react";
 import { useCamera } from "../hooks/useCamera.js";
 import { analyzeFrame } from "../api/gemini.js";
 import { BUTTON, SEVERITY, SURFACE } from "../ui/tokens.js";
+import Badge from "../ui/Badge.jsx";
+import Card from "../ui/Card.jsx";
+import SectionHeader from "../ui/SectionHeader.jsx";
 
 const INTERVAL_MS = 3000;
 
@@ -50,7 +53,18 @@ export default function CameraFeed({ onAnalysis }) {
   const styles = SEVERITY[sev] ?? SEVERITY.low;
 
   return (
-    <div className={`${SURFACE.card} overflow-hidden flex flex-col`}>
+    <Card className="overflow-hidden flex flex-col">
+      <div className={`border-b px-4 py-3 ${SURFACE.sectionBorder}`}>
+        <SectionHeader
+          title="Live Monitor"
+          subtitle={isActive ? `Scanning every ${INTERVAL_MS / 1000}s` : "Start monitoring to begin live workstation analysis."}
+          action={
+            <Badge className={isActive ? "bg-red-950 text-red-200" : "bg-gray-800 text-gray-300"}>
+              {isActive ? "Camera On" : "Camera Off"}
+            </Badge>
+          }
+        />
+      </div>
       {/* Video wrapper */}
       <div className={`relative border-4 transition-colors duration-500 ${isActive ? styles.border : "border-gray-700"}`}>
         <video
@@ -88,9 +102,9 @@ export default function CameraFeed({ onAnalysis }) {
               </span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${styles.badge}`}>
+                  <Badge className={styles.badge}>
                     {hazard.severity}
-                  </span>
+                  </Badge>
                   <span className="text-xs text-gray-300 capitalize font-medium">
                     {hazard.category?.replace("_", " ")}
                   </span>
@@ -125,8 +139,8 @@ export default function CameraFeed({ onAnalysis }) {
       </div>
 
       {/* Controls bar */}
-      <div className="flex items-center justify-between px-4 py-3">
-        <p className={`text-xs ${SURFACE.mutedText}`}>
+      <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className={`text-xs sm:max-w-[70%] ${SURFACE.mutedText}`}>
           {error ? (
             <span className="text-red-400">{error}</span>
           ) : isActive ? (
@@ -137,7 +151,7 @@ export default function CameraFeed({ onAnalysis }) {
         </p>
         <button
           onClick={toggle}
-          className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+          className={`w-full px-4 py-2 rounded-lg text-sm font-semibold transition-colors sm:w-auto ${
             isActive
               ? BUTTON.danger
               : BUTTON.primary
@@ -146,6 +160,6 @@ export default function CameraFeed({ onAnalysis }) {
           {isActive ? "Stop" : "Start Monitoring"}
         </button>
       </div>
-    </div>
+    </Card>
   );
 }

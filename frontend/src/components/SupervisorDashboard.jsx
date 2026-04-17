@@ -3,6 +3,9 @@ import {
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { CHART, SEVERITY, SURFACE } from "../ui/tokens.js";
+import Badge from "../ui/Badge.jsx";
+import Card from "../ui/Card.jsx";
+import SectionHeader from "../ui/SectionHeader.jsx";
 
 function groupByCategory(incidents) {
   const map = {};
@@ -35,7 +38,10 @@ export default function SupervisorDashboard({ incidents, stats }) {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-white">Supervisor Dashboard</h2>
+      <SectionHeader
+        title="Supervisor Dashboard"
+        subtitle="Monitor safety volume, severity distribution, and recent incident history."
+      />
 
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -45,18 +51,18 @@ export default function SupervisorDashboard({ incidents, stats }) {
           { label: "High Severity", value: stats.by_severity?.high ?? 0, color: SEVERITY.high.text },
           { label: "Low Severity", value: stats.by_severity?.low ?? 0, color: SEVERITY.low.text },
         ].map((kpi) => (
-          <div key={kpi.label} className={`${SURFACE.card} px-4 py-4 text-center`}>
+          <Card key={kpi.label} className="px-4 py-4 text-center">
             <p className={`text-3xl font-bold ${kpi.color}`}>{kpi.value}</p>
             <p className={`text-xs mt-1 ${SURFACE.mutedText}`}>{kpi.label}</p>
-          </div>
+          </Card>
         ))}
       </div>
 
       {/* Charts row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Severity pie */}
-        <div className={`${SURFACE.card} p-4`}>
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">By Severity</h3>
+        <Card className="p-4">
+          <SectionHeader title="By Severity" className="mb-3" />
           {pieData.length === 0 ? (
             <p className="text-gray-500 text-sm text-center py-8">No data yet</p>
           ) : (
@@ -72,11 +78,11 @@ export default function SupervisorDashboard({ incidents, stats }) {
               </PieChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </Card>
 
         {/* Category bar */}
-        <div className={`${SURFACE.card} p-4`}>
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">By Category</h3>
+        <Card className="p-4">
+          <SectionHeader title="By Category" className="mb-3" />
           {categoryData.length === 0 ? (
             <p className="text-gray-500 text-sm text-center py-8">No data yet</p>
           ) : (
@@ -93,13 +99,13 @@ export default function SupervisorDashboard({ incidents, stats }) {
               </BarChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </Card>
       </div>
 
       {/* Hourly trend */}
       {hourData.length > 0 && (
-        <div className={`${SURFACE.card} p-4`}>
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">Incidents by Hour (today)</h3>
+        <Card className="p-4">
+          <SectionHeader title="Incidents by Hour" subtitle="Today" className="mb-3" />
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={hourData}>
               <XAxis dataKey="hour" tick={CHART.axisTick} />
@@ -108,14 +114,14 @@ export default function SupervisorDashboard({ incidents, stats }) {
               <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
       )}
 
       {/* Recent incidents table */}
-      <div className={SURFACE.cardOverflow}>
-        <h3 className={`text-sm font-semibold text-gray-300 px-4 py-3 border-b ${SURFACE.sectionBorder}`}>
-          Recent Incidents
-        </h3>
+      <Card className="overflow-hidden">
+        <div className={`px-4 py-3 border-b ${SURFACE.sectionBorder}`}>
+          <SectionHeader title="Recent Incidents" />
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-gray-300">
             <thead className={SURFACE.tableHeader}>
@@ -134,9 +140,9 @@ export default function SupervisorDashboard({ incidents, stats }) {
                     {new Date(inc.timestamp * 1000).toLocaleTimeString()}
                   </td>
                   <td className="px-4 py-2 capitalize">
-                    <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${SEVERITY[inc.severity]?.pill ?? SEVERITY.low.pill}`}>
+                    <Badge className={SEVERITY[inc.severity]?.pill ?? SEVERITY.low.pill}>
                       {inc.severity}
-                    </span>
+                    </Badge>
                   </td>
                   <td className={`px-4 py-2 capitalize ${SURFACE.mutedText}`}>{inc.category}</td>
                   <td className="px-4 py-2 max-w-xs truncate">{inc.description}</td>
@@ -159,7 +165,7 @@ export default function SupervisorDashboard({ incidents, stats }) {
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
