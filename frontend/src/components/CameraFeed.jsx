@@ -1,9 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useCamera } from "../hooks/useCamera.js";
 import { analyzeFrame } from "../api/gemini.js";
-import { useToast } from "./ToastContainer.jsx";
 
-const INTERVAL_MS = 6000;
+const INTERVAL_MS = 3000;
 
 const SEV = {
   low:    { border: "border-green-500",  badge: "bg-green-600"  },
@@ -49,7 +48,6 @@ function hazardFromAnalysis(analysis) {
 }
 
 export default function CameraFeed({ onAnalysis, demoAnalysis }) {
-  const { addToast }                = useToast();
   const [status, setStatus]         = useState("idle");
   const [hazard, setHazard]         = useState(null);
   const [analyzing, setAnalyzing]   = useState(false);
@@ -88,26 +86,14 @@ export default function CameraFeed({ onAnalysis, demoAnalysis }) {
       const h = hazardFromAnalysis(analysis);
       setHazard(h);
       setStatus(h ? "warning" : "safe");
+      // Pass data in the shape CoachPanel expects: { incident, coach }
       onAnalysis?.({ incident: result.incident ?? null, coach: result.coach ?? null });
-
-      // Toast notifications for detected issues
-      const sevToType = (s) => s === "critical" ? "critical" : "warning";
-      for (const item of (analysis.posture_issues ?? [])) {
-        addToast(item.description, sevToType(item.severity));
-      }
-      for (const item of (analysis.housekeeping_issues ?? [])) {
-        addToast(item.description, sevToType(item.severity));
-      }
-      if (analysis.overall_risk === "high") {
-        addToast("High risk detected: " + analysis.frame_summary, "critical");
-      }
     } catch {
       setStatus("error");
-      addToast("Camera analysis failed — check your connection", "critical");
     } finally {
       setAnalyzing(false);
     }
-  }, [onAnalysis, addToast]);
+  }, [onAnalysis]);
 
   const { videoRef, isActive, error, startCamera, stopCamera } = useCamera(INTERVAL_MS);
 
@@ -156,7 +142,7 @@ export default function CameraFeed({ onAnalysis, demoAnalysis }) {
           <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/60 rounded px-2 py-1 z-10">
             <span className={`h-2 w-2 rounded-full ${analyzing ? "bg-yellow-400 animate-pulse" : "bg-red-500 animate-ping"}`} />
             <span className="text-xs font-bold text-white tracking-widest">
-              {analyzing ? "ANALYZING" : "LIVE · 1 frame/6s"}
+              {analyzing ? "ANALYZING" : "LIVE"}
             </span>
           </div>
         )}

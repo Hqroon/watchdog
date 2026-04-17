@@ -6,14 +6,6 @@ import {
 const PIE_COLORS = { low: "#22c55e", medium: "#eab308", high: "#ef4444" };
 const CATEGORY_COLORS = ["#3b82f6", "#8b5cf6", "#ec4899", "#f97316", "#14b8a6", "#94a3b8"];
 
-function formatRelative(ts) {
-  if (!ts) return "—";
-  const diff = Math.floor((Date.now() / 1000) - ts);
-  if (diff < 60)  return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
-  return `${Math.floor(diff / 3600)} hr ago`;
-}
-
 function groupByCategory(incidents) {
   const map = {};
   for (const inc of incidents) {
@@ -50,12 +42,7 @@ export default function SupervisorDashboard({ incidents, stats }) {
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          {
-            label: "Total Incidents",
-            value: stats.total,
-            color: "text-white",
-            sub: `(${incidents.reduce((s, i) => s + (i.occurrence_count ?? 1), 0)} total occurrences)`,
-          },
+          { label: "Total Incidents", value: stats.total, color: "text-white" },
           { label: "Unresolved", value: stats.unresolved, color: "text-yellow-400" },
           { label: "High Severity", value: stats.by_severity?.high ?? 0, color: "text-red-400" },
           { label: "Low Severity", value: stats.by_severity?.low ?? 0, color: "text-green-400" },
@@ -63,7 +50,6 @@ export default function SupervisorDashboard({ incidents, stats }) {
           <div key={kpi.label} className="bg-gray-900 rounded-xl border border-gray-800 px-4 py-4 text-center">
             <p className={`text-3xl font-bold ${kpi.color}`}>{kpi.value}</p>
             <p className="text-xs text-gray-400 mt-1">{kpi.label}</p>
-            {kpi.sub && <p className="text-xs text-gray-500 mt-0.5">{kpi.sub}</p>}
           </div>
         ))}
       </div>
@@ -146,8 +132,6 @@ export default function SupervisorDashboard({ incidents, stats }) {
                 <th className="px-4 py-2 text-left">Severity</th>
                 <th className="px-4 py-2 text-left">Category</th>
                 <th className="px-4 py-2 text-left">Description</th>
-                <th className="px-4 py-2 text-left">Last Seen</th>
-                <th className="px-4 py-2 text-left">Count</th>
                 <th className="px-4 py-2 text-left">Status</th>
               </tr>
             </thead>
@@ -172,16 +156,6 @@ export default function SupervisorDashboard({ incidents, stats }) {
                   </td>
                   <td className="px-4 py-2 capitalize text-gray-400">{inc.category}</td>
                   <td className="px-4 py-2 max-w-xs truncate">{inc.description}</td>
-                  <td className="px-4 py-2 whitespace-nowrap text-gray-400 text-xs">
-                    {formatRelative(inc.last_seen ?? inc.timestamp)}
-                  </td>
-                  <td className="px-4 py-2">
-                    {(inc.occurrence_count ?? 1) > 1 ? (
-                      <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-yellow-800 text-yellow-200">
-                        ×{inc.occurrence_count}
-                      </span>
-                    ) : null}
-                  </td>
                   <td className="px-4 py-2">
                     {inc.resolved ? (
                       <span className="text-green-400">Resolved</span>

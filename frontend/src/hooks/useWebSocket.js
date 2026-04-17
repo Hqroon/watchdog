@@ -1,18 +1,22 @@
 import { useEffect, useRef } from "react";
-import { useToast } from "../components/ToastContainer.jsx";
 
-const RISK_TO_TYPE = { high: "critical", medium: "warning", low: "info" };
-
+/**
+ * useWebSocket — auto-reconnecting WebSocket hook.
+ *
+ * @param {string} path        WebSocket path relative to window.location (e.g. "/ws")
+ * @param {function} onMessage Callback invoked with parsed JSON message
+ * @param {number} retryMs     Reconnect delay in ms (default 3000)
+ */
 export function useWebSocket(path, onMessage, retryMs = 3000) {
-  const { addToast }    = useToast();
-  const wsRef           = useRef(null);
-  const onMessageRef    = useRef(onMessage);
-  const retryTimeout    = useRef(null);
-  const unmounted       = useRef(false);
-  const addToastRef     = useRef(addToast);
+  const wsRef = useRef(null);
+  const onMessageRef = useRef(onMessage);
+  const retryTimeout = useRef(null);
+  const unmounted = useRef(false);
 
-  useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
-  useEffect(() => { addToastRef.current  = addToast;  }, [addToast]);
+  // Keep callback ref up-to-date without reconnecting
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  }, [onMessage]);
 
   useEffect(() => {
     unmounted.current = false;
@@ -32,10 +36,6 @@ export function useWebSocket(path, onMessage, retryMs = 3000) {
       ws.onmessage = (evt) => {
         try {
           const data = JSON.parse(evt.data);
-          if (data.event === "new_incident") {
-            const type = RISK_TO_TYPE[data.incident?.severity] ?? "info";
-            addToastRef.current?.(data.incident?.description || "New incident detected", type);
-          }
           onMessageRef.current?.(data);
         } catch {
           // ignore non-JSON frames

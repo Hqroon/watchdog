@@ -3,7 +3,6 @@ import CameraFeed from "./components/CameraFeed.jsx";
 import AlertPanel from "./components/AlertPanel.jsx";
 import CoachPanel from "./components/CoachPanel.jsx";
 import SupervisorDashboard from "./components/SupervisorDashboard.jsx";
-import { ToastProvider } from "./components/ToastContainer.jsx";
 import { useWebSocket } from "./hooks/useWebSocket.js";
 import { getIncidents } from "./api/gemini.js";
 
@@ -72,7 +71,7 @@ const DEMO_SCENARIOS = [
   },
 ];
 
-function MainApp() {
+export default function App() {
   const [tab, setTab]                 = useState("Monitor");
   const [latestAnalysis, setLatestAnalysis] = useState(null);
   const [incidents, setIncidents]     = useState([]);
@@ -211,13 +210,5 @@ function MainApp() {
         )}
       </main>
     </div>
-  );
-}
-
-export default function App() {
-  return (
-    <ToastProvider>
-      <MainApp />
-    </ToastProvider>
   );
 }

@@ -6,7 +6,7 @@ import { useRef, useState, useCallback, useEffect } from "react";
  * @param {number} captureIntervalMs  How often to capture a frame (ms). Default 3000.
  * @returns {{ videoRef, isActive, error, startCamera, stopCamera, captureFrame }}
  */
-export function useCamera(captureIntervalMs = 6000) {
+export function useCamera(captureIntervalMs = 3000) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const intervalRef = useRef(null);
