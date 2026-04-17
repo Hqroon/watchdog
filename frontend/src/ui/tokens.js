@@ -9,11 +9,11 @@ export const SURFACE = {
 };
 
 export const BUTTON = {
-  primary: "bg-blue-600 hover:bg-blue-700 text-white",
+  primary: "bg-[#A362C9] hover:bg-[#8f52b3] text-white",
   primaryGhost: "text-gray-400 hover:text-white hover:bg-gray-800",
   danger: "bg-red-600 hover:bg-red-700 text-white",
   link: "text-blue-400 hover:text-blue-300 transition-colors",
-  tabActive: "bg-blue-600 text-white",
+  tabActive: "bg-[#A362C9] text-white",
   tabInactive: "text-gray-400 hover:bg-gray-800",
 };
 

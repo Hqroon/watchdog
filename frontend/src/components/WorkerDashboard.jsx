@@ -34,7 +34,6 @@ function formatRelativeTime(timestamp) {
   const now = Date.now();
   const diffMs = Math.max(0, now - timestamp * 1000);
   const seconds = Math.floor(diffMs / 1000);
-
   if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"} ago`;
 
   const minutes = Math.floor(seconds / 60);
@@ -59,10 +58,10 @@ function formatExactTime(timestamp) {
   });
 }
 
-export default function SupervisorDashboard({ incidents, stats }) {
+export default function WorkerDashboard({ incidents, stats }) {
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const pieData = Object.entries(stats.by_severity ?? {})
-    .filter(([, v]) => v > 0)
+    .filter(([, value]) => value > 0)
     .map(([name, value]) => ({ name, value }));
 
   const categoryData = groupByCategory(incidents);
@@ -81,11 +80,10 @@ export default function SupervisorDashboard({ incidents, stats }) {
   return (
     <div className="space-y-4">
       <SectionHeader
-        title="Supervisor Dashboard"
+        title="Worker Dashboard"
         subtitle="Monitor safety volume, severity distribution, and recent incident history."
       />
 
-      {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: "Total Incidents", value: stats.total, color: "text-white" },
@@ -100,9 +98,7 @@ export default function SupervisorDashboard({ incidents, stats }) {
         ))}
       </div>
 
-      {/* Charts row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Severity pie */}
         <Card className="p-4">
           <SectionHeader title="By Severity" className="mb-3" />
           {pieData.length === 0 ? (
@@ -122,7 +118,6 @@ export default function SupervisorDashboard({ incidents, stats }) {
           )}
         </Card>
 
-        {/* Category bar */}
         <Card className="p-4">
           <SectionHeader title="By Category" className="mb-3" />
           {categoryData.length === 0 ? (
@@ -134,8 +129,8 @@ export default function SupervisorDashboard({ incidents, stats }) {
                 <YAxis tick={CHART.axisTick} allowDecimals={false} />
                 <Tooltip contentStyle={CHART.tooltipContent} labelStyle={CHART.tooltipLabel} />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {categoryData.map((_, i) => (
-                    <Cell key={i} fill={CHART.categoryColors[i % CHART.categoryColors.length]} />
+                  {categoryData.map((_, index) => (
+                    <Cell key={index} fill={CHART.categoryColors[index % CHART.categoryColors.length]} />
                   ))}
                 </Bar>
               </BarChart>
@@ -144,7 +139,6 @@ export default function SupervisorDashboard({ incidents, stats }) {
         </Card>
       </div>
 
-      {/* Hourly trend */}
       {hourData.length > 0 && (
         <Card className="p-4">
           <SectionHeader title="Incidents by Hour" subtitle="Today" className="mb-3" />
@@ -159,11 +153,11 @@ export default function SupervisorDashboard({ incidents, stats }) {
         </Card>
       )}
 
-      {/* Recent incidents table */}
       <Card className="overflow-hidden">
         <div className={`px-4 py-3 border-b ${SURFACE.sectionBorder}`}>
           <SectionHeader title="Recent Incidents" />
         </div>
+
         <div className="md:hidden">
           {recentIncidents.length === 0 ? (
             <div className="px-4 py-8 text-center text-gray-500 text-sm">
@@ -243,6 +237,7 @@ export default function SupervisorDashboard({ incidents, stats }) {
             </div>
           )}
         </div>
+
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-xs text-gray-300">
             <thead className={SURFACE.tableHeader}>

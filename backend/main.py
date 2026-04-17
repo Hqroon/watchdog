@@ -1,5 +1,5 @@
 """
-WatchDog — FastAPI backend
+Lance — FastAPI backend
 ==========================
 Endpoints
 ---------
@@ -27,7 +27,7 @@ from incident_store import Incident, store
 from ollama_coach import generate_coaching
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("watchdog")
+logger = logging.getLogger("lance")
 
 # ---------------------------------------------------------------------------
 # WebSocket connection manager
@@ -63,12 +63,12 @@ manager = ConnectionManager()
 # ---------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("WatchDog backend starting…")
+    logger.info("Lance backend starting…")
     yield
-    logger.info("WatchDog backend stopping…")
+    logger.info("Lance backend stopping…")
 
 
-app = FastAPI(title="WatchDog API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Lance API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -107,8 +107,10 @@ async def analyze(file: UploadFile = File(...)):
         logger.error("Gemini error: %s", exc)
         raise HTTPException(status_code=502, detail=f"Gemini error: {exc}") from exc
 
+    overall_risk = analysis.get("overall_risk", "low")
     incident = None
-    if not analysis.get("safe", True):
+    coach_msg = None
+    if overall_risk in ("medium", "high"):
         # --- Ollama coaching (blocking) -----------------------------------
         try:
             coach_msg = await loop.run_in_executor(None, generate_coaching, analysis)
@@ -116,10 +118,18 @@ async def analyze(file: UploadFile = File(...)):
             logger.warning("Ollama error (non-fatal): %s", exc)
             coach_msg = "Safety issue detected. Please follow standard procedures."
 
+        posture = analysis.get("posture_issues", [])
+        if posture:
+            category = "posture"
+        elif analysis.get("housekeeping_issues"):
+            category = "housekeeping"
+        else:
+            category = "hazard"
+
         incident = Incident(
-            severity=analysis.get("severity", "low"),
-            category=analysis.get("category", "unknown"),
-            description=analysis.get("description", ""),
+            severity=overall_risk,
+            category=category,
+            description=analysis.get("frame_summary", ""),
             coach_message=coach_msg,
             frame_b64=base64.b64encode(jpeg_bytes).decode() if len(jpeg_bytes) < 500_000 else None,
         )
@@ -131,6 +141,7 @@ async def analyze(file: UploadFile = File(...)):
                 "event": "new_incident",
                 "incident": incident.to_dict(),
                 "coach": coach_msg,
+                "stats": store.stats(),
             }
         )
 
@@ -138,6 +149,8 @@ async def analyze(file: UploadFile = File(...)):
         {
             "analysis": analysis,
             "incident_id": incident.id if incident else None,
+            "incident": incident.to_dict() if incident else None,
+            "coach": coach_msg if incident else None,
         }
     )
 
@@ -149,11 +162,26 @@ async def get_incidents(limit: int = 50):
 
 @app.post("/incidents/{incident_id}/resolve")
 async def resolve_incident(incident_id: str):
-    ok = store.resolve(incident_id)
-    if not ok:
+    status = store.resolve(incident_id)
+    if status == "not_found":
         raise HTTPException(status_code=404, detail="Incident not found.")
-    await manager.broadcast({"event": "incident_resolved", "incident_id": incident_id})
-    return {"resolved": True}
+    incident = store.get(incident_id)
+    stats = store.stats()
+    if status == "resolved":
+        await manager.broadcast(
+            {
+                "event": "incident_resolved",
+                "incident_id": incident_id,
+                "incident": incident.to_dict() if incident else None,
+                "stats": stats,
+            }
+        )
+    return {
+        "resolved": status == "resolved",
+        "already_resolved": status == "already_resolved",
+        "incident": incident.to_dict() if incident else None,
+        "stats": stats,
+    }
 
 
 @app.get("/stats")
@@ -173,7 +201,14 @@ async def seed_incident(body: dict):
         resolved=body.get("resolved", False),
     )
     store.add(inc)
-    await manager.broadcast({"event": "new_incident", "incident": inc.to_dict(), "coach": inc.coach_message})
+    await manager.broadcast(
+        {
+            "event": "new_incident",
+            "incident": inc.to_dict(),
+            "coach": inc.coach_message,
+            "stats": store.stats(),
+        }
+    )
     return inc.to_dict()
 
 

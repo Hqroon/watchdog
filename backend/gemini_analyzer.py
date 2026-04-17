@@ -1,5 +1,5 @@
 """
-OpenAI GPT-4o vision analyzer for WatchDog.
+OpenAI GPT-4o vision analyzer for Lance.
 
 Sends a JPEG frame to GPT-4o and returns a structured safety analysis.
 """
@@ -20,28 +20,43 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 MODEL_NAME = "gpt-4o"
 
-SAFETY_PROMPT = """
-You are an AI-powered workstation safety inspector for a smart manufacturing facility.
+SAFETY_PROMPT = """You are a factory floor safety and quality inspector. Analyze this image and return ONLY a raw JSON object — no markdown, no code fences, no explanation.
 
-Analyze the provided image and return a JSON object with EXACTLY these fields:
+Detect and locate everything you can see from these categories:
+- PERSON: any worker, operator, or human figure
+- FOOD_DRINK: food, drink bottles, coffee cups, snacks, any beverage
+- WIRES_CABLES: loose, tangled, or floor-level cables and wires
+- TOOLS: screwdrivers, pliers, soldering irons, multimeters, any hand tools
+- COMPONENTS: PCBs, chips, electronic components, circuit boards
+- HAZARDS: spills, blocked pathways, trip hazards, cluttered surfaces
+- FIRE_EXIT: fire exit signs or doors, note if blocked
+
+For every single detected object include a bounding box as normalized coordinates where 0.0 is top-left and 1.0 is bottom-right. x and y are the top-left corner of the box.
+
+Return exactly this JSON structure and nothing else:
 {
-  "safe": true or false,
-  "severity": "low" | "medium" | "high",
-  "category": one of ["PPE", "posture", "proximity", "housekeeping", "tool_use", "none"],
-  "description": "One concise sentence describing the observation.",
-  "recommendations": ["action 1", "action 2"]
+  "detections": [
+    {
+      "category": "PERSON",
+      "label": "operator at workbench",
+      "confidence": 0.95,
+      "box": { "x": 0.1, "y": 0.05, "w": 0.3, "h": 0.7 },
+      "severity": "ok"
+    }
+  ],
+  "posture_issues": [
+    { "issue": "forward neck lean", "severity": "warning", "description": "Head angled forward sustained" }
+  ],
+  "housekeeping_issues": [
+    { "issue": "loose cable on floor", "severity": "warning", "description": "Trip hazard near station" }
+  ],
+  "overall_risk": "medium",
+  "frame_summary": "One operator, missing PPE, cable hazard on floor"
 }
 
-Safety rules to enforce:
-- Workers must wear hard hats and high-visibility vests where applicable.
-- Proper ergonomic posture must be maintained (no hunching, awkward bending).
-- Minimum 1-metre clearance around moving machinery.
-- No loose cables or debris on walking paths.
-- Correct tool handling and storage.
-
-If the scene is safe, set "safe": true, "severity": "low", "category": "none".
-Respond ONLY with the JSON object — no markdown fences, no extra text.
-"""
+Severity values must be exactly: critical, warning, ok
+Overall risk must be exactly: low, medium, high
+Return empty arrays for categories where nothing is detected."""
 
 _client: Optional[OpenAI] = None
 
@@ -85,7 +100,7 @@ def analyze_frame(jpeg_bytes: bytes) -> dict:
                 ],
             }
         ],
-        max_tokens=512,
+        max_tokens=2048,
         temperature=0.1,
     )
 
@@ -99,11 +114,11 @@ def analyze_frame(jpeg_bytes: bytes) -> dict:
         result = json.loads(raw)
     except json.JSONDecodeError:
         result = {
-            "safe": True,
-            "severity": "low",
-            "category": "none",
-            "description": "Could not parse OpenAI response.",
-            "recommendations": [],
+            "detections": [],
+            "posture_issues": [],
+            "housekeeping_issues": [],
+            "overall_risk": "low",
+            "frame_summary": "Could not parse OpenAI response.",
         }
 
     return result

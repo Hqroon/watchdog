@@ -9,28 +9,44 @@ function formatTime(ts) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-async function resolveIncident(id) {
-  await fetch(`/incidents/${id}/resolve`, { method: "POST" });
-}
+export default function AlertPanel({ incidents, stats, onResolveIncident }) {
+  const [filter, setFilter] = useState("all");
+  const [pendingIds, setPendingIds] = useState({});
+  const [error, setError] = useState("");
 
-export default function AlertPanel({ incidents, stats }) {
-  const [filter, setFilter] = useState("all"); // all | unresolved | high
+  async function handleResolve(id) {
+    setError("");
+    setPendingIds((prev) => ({ ...prev, [id]: true }));
+    try {
+      await onResolveIncident?.(id);
+    } catch (resolveError) {
+      setError(resolveError.message || "Could not resolve incident.");
+    } finally {
+      setPendingIds((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  }
 
-  const filtered = incidents.filter((i) => {
-    if (filter === "unresolved") return !i.resolved;
-    if (filter === "high") return i.severity === "high";
+  const filtered = incidents.filter((incident) => {
+    if (filter === "unresolved") return !incident.resolved;
+    if (filter === "high") return incident.severity === "high";
     return true;
   });
 
   return (
     <Card className="flex h-full max-h-[80vh] min-h-[20rem] flex-col xl:sticky xl:top-4">
-      {/* Stats */}
       <div className={`px-4 pt-4 pb-2 border-b ${SURFACE.sectionBorder}`}>
         <SectionHeader
           title="Incidents"
           subtitle="Track live issues and resolve them as the workstation changes."
           className="mb-3"
         />
+        {error && (
+          <p className="mb-2 rounded bg-red-950 px-2 py-1 text-xs text-red-300">{error}</p>
+        )}
         <div className="grid grid-cols-3 gap-2 text-center text-xs">
           <div className="bg-gray-800 rounded-lg py-2">
             <p className="text-lg font-bold text-white">{stats.total}</p>
@@ -46,23 +62,21 @@ export default function AlertPanel({ incidents, stats }) {
           </div>
         </div>
 
-        {/* Filter tabs */}
         <div className="flex gap-1 mt-2">
-          {["all", "unresolved", "high"].map((f) => (
+          {["all", "unresolved", "high"].map((value) => (
             <button
-              key={f}
-              onClick={() => setFilter(f)}
+              key={value}
+              onClick={() => setFilter(value)}
               className={`flex-1 text-xs py-1 rounded transition-colors capitalize ${
-                filter === f ? BUTTON.tabActive : BUTTON.tabInactive
+                filter === value ? BUTTON.tabActive : BUTTON.tabInactive
               }`}
             >
-              {f}
+              {value}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Incident list */}
       <ul className={`flex-1 overflow-y-auto incident-scroll divide-y ${SURFACE.sectionBorder}`}>
         {filtered.length === 0 ? (
           <li className="px-4 py-8 text-center text-gray-500 text-sm">No incidents.</li>
@@ -70,9 +84,7 @@ export default function AlertPanel({ incidents, stats }) {
           filtered.map((inc) => (
             <li
               key={inc.id}
-              className={`px-4 py-3 ${SURFACE.hoverRow} ${
-                inc.resolved ? "opacity-40" : ""
-              }`}
+              className={`px-4 py-3 ${SURFACE.hoverRow} ${inc.resolved ? "opacity-40" : ""}`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
@@ -90,10 +102,11 @@ export default function AlertPanel({ incidents, stats }) {
               </div>
               {!inc.resolved && (
                 <button
-                  onClick={() => resolveIncident(inc.id)}
-                  className={`mt-1.5 text-xs ${BUTTON.link}`}
+                  onClick={() => handleResolve(inc.id)}
+                  disabled={!!pendingIds[inc.id]}
+                  className={`mt-1.5 text-xs disabled:cursor-not-allowed disabled:text-gray-500 ${BUTTON.link}`}
                 >
-                  Mark resolved
+                  {pendingIds[inc.id] ? "Resolving..." : "Mark resolved"}
                 </button>
               )}
             </li>
