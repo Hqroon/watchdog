@@ -27,7 +27,7 @@ function groupByHour(incidents) {
     .map(([hour, count]) => ({ hour, count }));
 }
 
-export default function SupervisorDashboard({ incidents, stats }) {
+export default function WorkerDashboard({ incidents, stats }) {
   const pieData = Object.entries(stats.by_severity ?? {})
     .filter(([, v]) => v > 0)
     .map(([name, value]) => ({ name, value }));
@@ -37,9 +37,8 @@ export default function SupervisorDashboard({ incidents, stats }) {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-white">Supervisor Dashboard</h2>
+      <h2 className="text-lg font-bold text-white">Worker Dashboard</h2>
 
-      {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: "Total Incidents", value: stats.total, color: "text-white" },
@@ -54,9 +53,7 @@ export default function SupervisorDashboard({ incidents, stats }) {
         ))}
       </div>
 
-      {/* Charts row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Severity pie */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
           <h3 className="text-sm font-semibold text-gray-300 mb-3">By Severity</h3>
           {pieData.length === 0 ? (
@@ -76,7 +73,6 @@ export default function SupervisorDashboard({ incidents, stats }) {
           )}
         </div>
 
-        {/* Category bar */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
           <h3 className="text-sm font-semibold text-gray-300 mb-3">By Category</h3>
           {categoryData.length === 0 ? (
@@ -101,7 +97,6 @@ export default function SupervisorDashboard({ incidents, stats }) {
         </div>
       </div>
 
-      {/* Hourly trend */}
       {hourData.length > 0 && (
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
           <h3 className="text-sm font-semibold text-gray-300 mb-3">Incidents by Hour (today)</h3>
@@ -119,7 +114,6 @@ export default function SupervisorDashboard({ incidents, stats }) {
         </div>
       )}
 
-      {/* Recent incidents table */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
         <h3 className="text-sm font-semibold text-gray-300 px-4 py-3 border-b border-gray-800">
           Recent Incidents

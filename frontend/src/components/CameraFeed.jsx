@@ -47,7 +47,7 @@ function hazardFromAnalysis(analysis) {
   return { severity: risk, category: cat, description: analysis.frame_summary ?? "" };
 }
 
-export default function CameraFeed({ onAnalysis, demoAnalysis }) {
+export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysis }) {
   const [status, setStatus]         = useState("idle");
   const [hazard, setHazard]         = useState(null);
   const [analyzing, setAnalyzing]   = useState(false);
@@ -56,6 +56,10 @@ export default function CameraFeed({ onAnalysis, demoAnalysis }) {
   const [vidH, setVidH]             = useState(0);
   const [legendOpen, setLegendOpen] = useState(false);
   const containerRef                = useRef(null);
+  const abortRef                    = useRef(null);
+  const sessionRef                  = useRef(0);
+  const activeRef                   = useRef(false);
+  const { videoRef, isActive, error, startCamera, stopCamera } = useCamera(INTERVAL_MS);
 
   // Measure video area for box positioning
   useEffect(() => {
@@ -77,29 +81,59 @@ export default function CameraFeed({ onAnalysis, demoAnalysis }) {
     setStatus(demoAnalysis.overall_risk === "low" ? "safe" : "warning");
   }, [demoAnalysis]);
 
+  useEffect(() => {
+    activeRef.current = isActive;
+    onMonitoringChange?.(isActive);
+  }, [isActive, onMonitoringChange]);
+
   const handleFrame = useCallback(async (dataUrl) => {
+    const sessionId = sessionRef.current;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setAnalyzing(true);
     try {
-      const result = await analyzeFrame(dataUrl);
+      const result = await analyzeFrame(dataUrl, controller.signal);
+      if (controller.signal.aborted || sessionId !== sessionRef.current || !activeRef.current) {
+        return;
+      }
       const analysis = result.analysis ?? {};
       setDetections(analysis.detections ?? []);
       const h = hazardFromAnalysis(analysis);
       setHazard(h);
       setStatus(h ? "warning" : "safe");
-      // Pass data in the shape CoachPanel expects: { incident, coach }
       onAnalysis?.({ incident: result.incident ?? null, coach: result.coach ?? null });
-    } catch {
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return;
+      }
+      if (sessionId !== sessionRef.current) {
+        return;
+      }
       setStatus("error");
     } finally {
-      setAnalyzing(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
+      if (sessionId === sessionRef.current) {
+        setAnalyzing(false);
+      }
     }
   }, [onAnalysis]);
 
-  const { videoRef, isActive, error, startCamera, stopCamera } = useCamera(INTERVAL_MS);
-
   const toggle = () => {
-    if (isActive) { stopCamera(); setStatus("idle"); setHazard(null); setDetections([]); }
-    else          { startCamera(handleFrame); }
+    if (isActive) {
+      sessionRef.current += 1;
+      abortRef.current?.abort();
+      stopCamera();
+      setStatus("idle");
+      setHazard(null);
+      setDetections([]);
+      setAnalyzing(false);
+      onAnalysis?.(null);
+    } else {
+      sessionRef.current += 1;
+      startCamera(handleFrame);
+    }
   };
 
   const sev       = hazard?.severity ?? "low";

@@ -10,15 +10,19 @@ export function useCamera(captureIntervalMs = 3000) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const intervalRef = useRef(null);
+  const isActiveRef = useRef(false);
+  const isProcessingRef = useRef(false);
 
   const [isActive, setIsActive] = useState(false);
   const [error, setError] = useState(null);
 
   const stopCamera = useCallback(() => {
+    isActiveRef.current = false;
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+    isProcessingRef.current = false;
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
@@ -53,12 +57,24 @@ export function useCamera(captureIntervalMs = 3000) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
+      isActiveRef.current = true;
       setIsActive(true);
 
       if (onFrame) {
-        intervalRef.current = setInterval(() => {
+        intervalRef.current = setInterval(async () => {
+          if (!isActiveRef.current || isProcessingRef.current) {
+            return;
+          }
           const dataUrl = captureFrame();
-          if (dataUrl) onFrame(dataUrl);
+          if (!dataUrl) {
+            return;
+          }
+          isProcessingRef.current = true;
+          try {
+            await onFrame(dataUrl);
+          } finally {
+            isProcessingRef.current = false;
+          }
         }, captureIntervalMs);
       }
     } catch (err) {
