@@ -8,6 +8,7 @@ actionable coaching message based on the Gemini safety analysis.
 from __future__ import annotations
 
 import os
+import re
 
 import httpx
 from dotenv import load_dotenv
@@ -17,6 +18,7 @@ load_dotenv()
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 TIMEOUT = 30.0  # seconds
+PULL_TIMEOUT = 180.0  # seconds
 
 
 COACHING_SYSTEM = (
@@ -43,6 +45,20 @@ def _build_prompt(analysis: dict) -> str:
         f"Scene: {summary}. Issues found: {detail_text}. "
         "Please write a short coaching message for the worker to correct this safely."
     )
+
+
+def _pull_model_if_needed() -> bool:
+    """Try to pull the configured Ollama model so first-time users can run coaching."""
+    try:
+        with httpx.Client(timeout=PULL_TIMEOUT) as client:
+            pull_resp = client.post(
+                f"{OLLAMA_BASE_URL}/api/pull",
+                json={"model": OLLAMA_MODEL, "stream": False},
+            )
+            pull_resp.raise_for_status()
+            return True
+    except Exception:
+        return False
 
 
 def generate_coaching(analysis: dict) -> str:
@@ -72,11 +88,16 @@ def generate_coaching(analysis: dict) -> str:
                 f"{OLLAMA_BASE_URL}/api/chat",
                 json=payload,
             )
+            # Missing model often returns 404 from Ollama; pull once, then retry.
+            if response.status_code == 404 and _pull_model_if_needed():
+                response = client.post(
+                    f"{OLLAMA_BASE_URL}/api/chat",
+                    json=payload,
+                )
             response.raise_for_status()
             data = response.json()
             text = data["message"]["content"].strip()
             # Strip common LLM preambles e.g. "Sure, here's a message:", "Here is:"
-            import re
             text = re.sub(r'^(sure[,.]?\s*)?(here[\s\w]*?:|okay[,.]?\s*)', '', text, flags=re.IGNORECASE).strip()
             # Strip leading quotes if the model wrapped the message
             text = text.strip('"').strip("'")
@@ -86,5 +107,12 @@ def generate_coaching(analysis: dict) -> str:
             "Safety issue detected. Please review the recommendation and follow "
             "standard operating procedures. Contact your supervisor if unsure."
         )
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            return (
+                "Safety issue detected. Coaching unavailable (model not found). "
+                f"Run: ollama pull {OLLAMA_MODEL}"
+            )
+        return f"Safety issue detected. Coaching unavailable ({exc})."
     except Exception as exc:  # noqa: BLE001
         return f"Safety issue detected. Coaching unavailable ({exc})."
