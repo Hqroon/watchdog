@@ -1,8 +1,8 @@
-# WatchDog — Real-Time Workstation Safety Monitor
+# Lance — Real-Time Workstation Safety Monitor
 
 > Luxshare Smart Manufacturing Hackathon Project
 
-WatchDog uses your laptop webcam, **OpenAI GPT-4o** for AI vision analysis, and a local **Ollama LLM** for personalized coaching to detect and alert on workstation safety hazards in real time.
+Lance uses your laptop webcam, **OpenAI GPT-4o** for AI vision analysis, and a local **Ollama LLM** for personalized coaching to detect and alert on workstation safety hazards in real time.
 
 ## Features
 
@@ -10,7 +10,7 @@ WatchDog uses your laptop webcam, **OpenAI GPT-4o** for AI vision analysis, and 
 - **GPT-4o vision analysis** — detects PPE violations, posture issues, proximity hazards, housekeeping problems
 - **Ollama-powered coaching** — generates friendly, actionable coaching messages locally (no data leaves your machine)
 - **Real-time WebSocket alerts** — instant push to all connected clients
-- **Supervisor Dashboard** — charts by severity, category, and hour-of-day
+- **Worker Dashboard** — charts by severity, category, and hour-of-day
 - **Incident management** — filter, review, and resolve incidents
 
 ---
@@ -127,7 +127,7 @@ Webcam → CameraFeed (React)
           └─ Ollama (llama3)   →  Coaching message
                 │
                 ├─ IncidentStore (in-memory ring buffer)
-                └─ WebSocket broadcast → AlertPanel / SupervisorDashboard
+                └─ WebSocket broadcast → AlertPanel / WorkerDashboard
 ```
 
 ---

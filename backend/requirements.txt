@@ -6,3 +6,7 @@ openai>=1.30.0
 httpx==0.27.0
 Pillow>=10.0.0
 python-multipart==0.0.9
+
+# Ollama models are not Python packages.
+# After installing Ollama, pull the configured model from backend/.env:
+#   ollama pull <OLLAMA_MODEL>

@@ -1,5 +1,5 @@
 """
-In-memory incident store for WatchDog.
+In-memory incident store for Lance.
 Keeps a bounded ring-buffer of the last MAX_INCIDENTS events
 and exposes helpers consumed by the REST + WebSocket layers.
 """
@@ -43,12 +43,20 @@ class IncidentStore:
         self._store.appendleft(incident)
         return incident
 
-    def resolve(self, incident_id: str) -> bool:
+    def get(self, incident_id: str) -> Optional[Incident]:
         for inc in self._store:
             if inc.id == incident_id:
-                inc.resolved = True
-                return True
-        return False
+                return inc
+        return None
+
+    def resolve(self, incident_id: str) -> str:
+        inc = self.get(incident_id)
+        if inc is None:
+            return "not_found"
+        if inc.resolved:
+            return "already_resolved"
+        inc.resolved = True
+        return "resolved"
 
     # ------------------------------------------------------------------
     # Read

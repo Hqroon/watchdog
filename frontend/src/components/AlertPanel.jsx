@@ -11,12 +11,26 @@ function formatTime(ts) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-async function resolveIncident(id) {
-  await fetch(`/incidents/${id}/resolve`, { method: "POST" });
-}
-
-export default function AlertPanel({ incidents, stats }) {
+export default function AlertPanel({ incidents, stats, onResolveIncident }) {
   const [filter, setFilter] = useState("all"); // all | unresolved | high
+  const [pendingIds, setPendingIds] = useState({});
+  const [error, setError] = useState("");
+
+  async function handleResolve(id) {
+    setError("");
+    setPendingIds((prev) => ({ ...prev, [id]: true }));
+    try {
+      await onResolveIncident?.(id);
+    } catch (resolveError) {
+      setError(resolveError.message || "Could not resolve incident.");
+    } finally {
+      setPendingIds((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  }
 
   const filtered = incidents.filter((i) => {
     if (filter === "unresolved") return !i.resolved;
@@ -29,6 +43,9 @@ export default function AlertPanel({ incidents, stats }) {
       {/* Stats */}
       <div className="px-4 pt-4 pb-2 border-b border-gray-800">
         <h2 className="text-sm font-bold text-gray-300 mb-2 uppercase tracking-wide">Incidents</h2>
+        {error && (
+          <p className="mb-2 rounded bg-red-950 px-2 py-1 text-xs text-red-300">{error}</p>
+        )}
         <div className="grid grid-cols-3 gap-2 text-center text-xs">
           <div className="bg-gray-800 rounded-lg py-2">
             <p className="text-lg font-bold text-white">{stats.total}</p>
@@ -86,10 +103,11 @@ export default function AlertPanel({ incidents, stats }) {
               </div>
               {!inc.resolved && (
                 <button
-                  onClick={() => resolveIncident(inc.id)}
-                  className="mt-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  onClick={() => handleResolve(inc.id)}
+                  disabled={!!pendingIds[inc.id]}
+                  className="mt-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors disabled:cursor-not-allowed disabled:text-gray-500"
                 >
-                  Mark resolved
+                  {pendingIds[inc.id] ? "Resolving..." : "Mark resolved"}
                 </button>
               )}
             </li>

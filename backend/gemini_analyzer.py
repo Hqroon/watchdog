@@ -1,5 +1,5 @@
 """
-OpenAI GPT-4o vision analyzer for WatchDog.
+OpenAI GPT-4o vision analyzer for Lance.
 
 Sends a JPEG frame to GPT-4o and returns a structured safety analysis.
 """
