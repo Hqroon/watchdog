@@ -214,16 +214,10 @@
     .lsec-wrap { max-width: 1200px; margin: 0 auto; }
 
     .lsnap {
-      min-height: calc(100svh - var(--nav-height));
-      display: flex;
-      align-items: center;
       position: relative;
       overflow: visible;
     }
     .lsnap > * { width: 100%; }
-    .parallax-shift {
-      will-change: transform;
-    }
     .lsnap-alt { background: #F7F8FC; }
     .lteam-pane {
       min-height: 100%;
@@ -242,11 +236,9 @@
     @media (max-width: 980px) {
       body { padding-top: var(--nav-height); }
       .lsnap {
-        min-height: auto;
         height: auto;
         display: block;
       }
-      .parallax-shift { transform: none !important; }
       .lhero {
         grid-template-columns: 1fr;
         gap: 28px;
@@ -307,7 +299,7 @@
   </nav>
 
   <!-- HERO -->
-  <section id="home" class="lsnap parallax-section" data-depth="0.16" style="background: #ffffff; padding: 0;">
+  <section id="home" class="lsnap" style="background: #ffffff; padding: 0;">
     <div class="parallax-shift">
       <div class="lhero">
         <div class="lhero-left">
@@ -329,7 +321,7 @@
   </section>
 
   <!-- STATS -->
-  <section id="problem" class="lstats lsnap parallax-section" data-depth="0.08">
+  <section id="problem" class="lstats lsnap">
     <div class="parallax-shift">
       <div class="lstats-inner">
         <div class="lsec-label">The Problem</div>
@@ -363,7 +355,7 @@
   </section>
 
   <!-- SOLUTION -->
-  <section id="solution" class="lsnap lsnap-alt parallax-section" data-depth="0.11" style="padding: 80px 0;">
+  <section id="solution" class="lsnap lsnap-alt" style="padding: 80px 0;">
     <div class="parallax-shift">
       <div class="lsol">
         <div class="lsec-label">The Solution</div>
@@ -419,7 +411,7 @@
   </section>
 
   <!-- FEATURES -->
-  <section id="features" class="lfeatures lsnap parallax-section" data-depth="0.13">
+  <section id="features" class="lfeatures lsnap">
     <div class="parallax-shift">
       <div class="lfeatures-inner">
         <div class="lfeatures-header">
@@ -464,7 +456,7 @@
   </section>
 
   <!-- DEMO CTA -->
-  <section id="demo" class="ldemo lsnap parallax-section" data-depth="0.08">
+  <section id="demo" class="ldemo lsnap">
     <div class="parallax-shift">
       <div class="ldemo-inner">
         <h2>See Lance coach you in action</h2>
@@ -476,7 +468,7 @@
   </section>
 
   <!-- TEAM -->
-  <section id="team" class="lsnap lsnap-alt parallax-section" data-depth="0.1" style="padding: 0;">
+  <section id="team" class="lsnap lsnap-alt" style="padding: 0;">
     <div class="parallax-shift">
       <div class="lteam-pane">
         <div class="lteam">
@@ -540,61 +532,16 @@
   </section>
 
   <script>
-    (() => {
-      // Smooth nav anchor scrolling
-      document.querySelectorAll('.lnav a[href^="#"], .lfooter a[href^="#"]').forEach((anchor) => {
-        anchor.addEventListener('click', (event) => {
-          const targetId = anchor.getAttribute('href');
-          if (!targetId || targetId === '#') return;
-          const target = document.querySelector(targetId);
-          if (!target) return;
-          event.preventDefault();
-          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
+    document.querySelectorAll('.lnav a[href^="#"], .lfooter a[href^="#"]').forEach((anchor) => {
+      anchor.addEventListener('click', (event) => {
+        const targetId = anchor.getAttribute('href');
+        if (!targetId || targetId === '#') return;
+        const target = document.querySelector(targetId);
+        if (!target) return;
+        event.preventDefault();
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
-
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-      const sections = Array.from(document.querySelectorAll('.parallax-section'));
-      const lerp = (a, b, t) => a + (b - a) * t;
-      const LERP_FACTOR = 0.07;
-      const BOOST = 1.9;
-      const CLAMP = 58;
-
-      // Per-section state: { current, target }
-      const state = new Map(sections.map(s => [s, { current: 0, target: 0 }]));
-
-      const computeTarget = (section) => {
-        const rect = section.getBoundingClientRect();
-        if (rect.height > window.innerHeight * 0.98) return 0;
-        const sectionMid = window.scrollY + rect.top + rect.height / 2;
-        const viewportMid = window.scrollY + window.innerHeight / 2;
-        const depth = Number(section.dataset.depth || 0.1);
-        const raw = (viewportMid - sectionMid) * depth * BOOST;
-        return Math.max(-CLAMP, Math.min(CLAMP, raw));
-      };
-
-      let rafId = null;
-
-      const tick = () => {
-        let needsMore = false;
-        sections.forEach(section => {
-          const s = state.get(section);
-          s.target = computeTarget(section);
-          s.current = lerp(s.current, s.target, LERP_FACTOR);
-          const layer = section.querySelector('.parallax-shift');
-          if (layer) layer.style.transform = `translate3d(0, ${s.current.toFixed(3)}px, 0)`;
-          if (Math.abs(s.current - s.target) > 0.05) needsMore = true;
-        });
-        rafId = needsMore ? requestAnimationFrame(tick) : null;
-      };
-
-      const schedule = () => { if (!rafId) rafId = requestAnimationFrame(tick); };
-
-      window.addEventListener('scroll', schedule, { passive: true });
-      window.addEventListener('resize', schedule);
-      schedule();
-    })();
+    });
   </script>
 
 </div>
