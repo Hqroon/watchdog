@@ -12,7 +12,6 @@ const SEV = {
 
 const CAT_COLOR = {
   PERSON:       "#378ADD",
-  PPE_WORN:     "#639922",
   FOOD_DRINK:   "#E24B4A",
   WIRES_CABLES: "#EF9F27",
   TOOLS:        "#7F77DD",
@@ -25,7 +24,6 @@ const PULSE_CATS = new Set(["HAZARDS", "FOOD_DRINK"]);
 
 const LEGEND_ITEMS = [
   { color: "#378ADD", label: "Person" },
-  { color: "#639922", label: "PPE Worn" },
   { color: "#E24B4A", label: "Food/Drink" },
   { color: "#EF9F27", label: "Wires/Cables" },
   { color: "#7F77DD", label: "Tools" },
@@ -44,9 +42,8 @@ function boxColor(det) {
 function hazardFromAnalysis(analysis) {
   const risk = analysis.overall_risk ?? "low";
   if (risk === "low") return null;
-  const ppe = analysis.ppe_violations ?? [];
   const posture = analysis.posture_issues ?? [];
-  const cat = ppe.length ? "PPE" : posture.length ? "posture" : "housekeeping";
+  const cat = posture.length ? "posture" : "housekeeping";
   return { severity: risk, category: cat, description: analysis.frame_summary ?? "" };
 }
 

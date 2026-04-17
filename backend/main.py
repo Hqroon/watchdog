@@ -117,11 +117,8 @@ async def analyze(file: UploadFile = File(...)):
             logger.warning("Ollama error (non-fatal): %s", exc)
             coach_msg = "Safety issue detected. Please follow standard procedures."
 
-        ppe = analysis.get("ppe_violations", [])
         posture = analysis.get("posture_issues", [])
-        if ppe:
-            category = "PPE"
-        elif posture:
+        if posture:
             category = "posture"
         elif analysis.get("housekeeping_issues"):
             category = "housekeeping"

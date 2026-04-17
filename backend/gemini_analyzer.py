@@ -24,7 +24,6 @@ SAFETY_PROMPT = """You are a factory floor safety and quality inspector. Analyze
 
 Detect and locate everything you can see from these categories:
 - PERSON: any worker, operator, or human figure
-- PPE_WORN: safety glasses, gloves, hard hat, face mask, hi-vis vest that is actively being worn
 - FOOD_DRINK: food, drink bottles, coffee cups, snacks, any beverage
 - WIRES_CABLES: loose, tangled, or floor-level cables and wires
 - TOOLS: screwdrivers, pliers, soldering irons, multimeters, any hand tools
@@ -44,9 +43,6 @@ Return exactly this JSON structure and nothing else:
       "box": { "x": 0.1, "y": 0.05, "w": 0.3, "h": 0.7 },
       "severity": "ok"
     }
-  ],
-  "ppe_violations": [
-    { "item": "safety glasses", "severity": "critical", "description": "No eye protection on visible operator" }
   ],
   "posture_issues": [
     { "issue": "forward neck lean", "severity": "warning", "description": "Head angled forward sustained" }
@@ -119,7 +115,6 @@ def analyze_frame(jpeg_bytes: bytes) -> dict:
     except json.JSONDecodeError:
         result = {
             "detections": [],
-            "ppe_violations": [],
             "posture_issues": [],
             "housekeeping_issues": [],
             "overall_risk": "low",

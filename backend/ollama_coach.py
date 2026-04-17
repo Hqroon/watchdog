@@ -28,13 +28,10 @@ COACHING_SYSTEM = (
 
 def _build_prompt(analysis: dict) -> str:
     summary = analysis.get("frame_summary", "Safety issue detected.")
-    ppe = analysis.get("ppe_violations", [])
     posture = analysis.get("posture_issues", [])
     housekeeping = analysis.get("housekeeping_issues", [])
 
     details = []
-    for v in ppe:
-        details.append(f"PPE violation: {v.get('description', v.get('item', ''))}")
     for p in posture:
         details.append(f"Posture issue: {p.get('description', p.get('issue', ''))}")
     for h in housekeeping:

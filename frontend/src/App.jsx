@@ -10,21 +10,20 @@ const TABS = ["Monitor", "Supervisor"];
 
 const DEMO_SCENARIOS = [
   {
-    label: "No PPE",
+    label: "Hazard",
     overall_risk: "high",
-    frame_summary: "Operator at workstation missing safety glasses.",
-    ppe_violations: [{ item: "safety glasses", severity: "critical", description: "No eye protection on visible operator" }],
+    frame_summary: "Liquid spill near workstation creating a slip hazard.",
     posture_issues: [],
-    housekeeping_issues: [],
+    housekeeping_issues: [{ issue: "liquid spill", severity: "critical", description: "Slip hazard near operator position" }],
     detections: [
-      { category: "PERSON", label: "operator", confidence: 0.97, box: { x: 0.1, y: 0.05, w: 0.35, h: 0.8 }, severity: "ok" },
+      { category: "PERSON",  label: "operator",     confidence: 0.96, box: { x: 0.1,  y: 0.05, w: 0.35, h: 0.8  }, severity: "ok"       },
+      { category: "HAZARDS", label: "liquid spill",  confidence: 0.91, box: { x: 0.0,  y: 0.75, w: 0.5,  h: 0.2  }, severity: "critical" },
     ],
   },
   {
     label: "Posture",
     overall_risk: "medium",
     frame_summary: "Operator showing forward neck lean at workbench.",
-    ppe_violations: [],
     posture_issues: [{ issue: "forward neck lean", severity: "warning", description: "Head angled forward sustained" }],
     housekeeping_issues: [],
     detections: [
@@ -35,7 +34,6 @@ const DEMO_SCENARIOS = [
     label: "Housekeeping",
     overall_risk: "medium",
     frame_summary: "Loose cable and food/drink item present at workstation.",
-    ppe_violations: [],
     posture_issues: [],
     housekeeping_issues: [{ issue: "loose cable on floor", severity: "warning", description: "Trip hazard near station" }],
     detections: [
@@ -47,21 +45,19 @@ const DEMO_SCENARIOS = [
   {
     label: "All Clear",
     overall_risk: "low",
-    frame_summary: "Workstation clear. Operator equipped with PPE.",
-    ppe_violations: [],
+    frame_summary: "Workstation clear. No hazards detected.",
     posture_issues: [],
     housekeeping_issues: [],
     detections: [
-      { category: "PERSON",     label: "operator",      confidence: 0.96, box: { x: 0.3,  y: 0.1,  w: 0.35, h: 0.75 }, severity: "ok" },
-      { category: "PPE_WORN",   label: "safety glasses", confidence: 0.89, box: { x: 0.33, y: 0.12, w: 0.14, h: 0.1  }, severity: "ok" },
-      { category: "COMPONENTS", label: "PCB assembly",  confidence: 0.92, box: { x: 0.55, y: 0.4,  w: 0.3,  h: 0.25 }, severity: "ok" },
+      { category: "PERSON",     label: "operator",     confidence: 0.96, box: { x: 0.3,  y: 0.1,  w: 0.35, h: 0.75 }, severity: "ok" },
+      { category: "COMPONENTS", label: "PCB assembly", confidence: 0.92, box: { x: 0.55, y: 0.4,  w: 0.3,  h: 0.25 }, severity: "ok" },
+      { category: "TOOLS",      label: "screwdriver",  confidence: 0.84, box: { x: 0.72, y: 0.6,  w: 0.1,  h: 0.18 }, severity: "ok" },
     ],
   },
   {
     label: "Multi Violation",
     overall_risk: "high",
-    frame_summary: "Multiple critical violations: missing PPE, exposed wiring, and drink near components.",
-    ppe_violations: [{ item: "safety glasses", severity: "critical", description: "No eye protection on visible operator" }],
+    frame_summary: "Multiple critical violations: exposed wiring and drink near components.",
     posture_issues: [],
     housekeeping_issues: [
       { issue: "exposed wiring",              severity: "critical", description: "Electrical hazard at workstation" },
