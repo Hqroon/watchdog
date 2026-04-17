@@ -7,6 +7,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import ActivityLog from "./ActivityLog.jsx";
+import { API_BASE } from "../config.js";
 
 function formatDuration(minutes) {
   const h = Math.floor(minutes / 60);
@@ -38,7 +40,7 @@ export default function SessionDashboard({ incidents, stats, sessionStats = {}, 
 
   const handleReset = useCallback(async () => {
     try {
-      const res = await fetch("/reset-session", { method: "POST" });
+      const res = await fetch(`${API_BASE}/reset-session`, { method: "POST" });
       if (!res.ok) throw new Error("Request failed");
       onResetSession?.();
       toast.success("Session reset");
@@ -156,6 +158,16 @@ export default function SessionDashboard({ incidents, stats, sessionStats = {}, 
               </TableBody>
             </Table>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Session activity log */}
+      <Card className="shadow-none">
+        <CardHeader className="pb-2">
+          <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Session activity</p>
+        </CardHeader>
+        <CardContent>
+          <ActivityLog />
         </CardContent>
       </Card>
     </div>
