@@ -1,116 +1,91 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useCamera } from "../hooks/useCamera.js";
 import { analyzeFrame } from "../api/gemini.js";
-import { SEVERITY, SURFACE } from "../ui/tokens.js";
-import Badge from "../ui/Badge.jsx";
-import Card from "../ui/Card.jsx";
-import SectionHeader from "../ui/SectionHeader.jsx";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const INTERVAL_MS = 3000;
 
-const CAT_COLOR = {
-  PERSON: "#378ADD",
-  FOOD_DRINK: "#E24B4A",
-  WIRES_CABLES: "#EF9F27",
-  TOOLS: "#7F77DD",
-  COMPONENTS: "#1D9E75",
-  HAZARDS: "#E24B4A",
-  FIRE_EXIT: "#639922",
+const POSTURE_BAR = {
+  good: { bg: "bg-green-500", label: "Good" },
+  warning: { bg: "bg-yellow-500", label: "Fair" },
+  poor: { bg: "bg-red-500", label: "Poor" },
 };
 
-const PULSE_CATS = new Set(["HAZARDS", "FOOD_DRINK"]);
+const WELLNESS_BADGE = {
+  good: "text-green-600 border-green-500",
+  fair: "text-yellow-600 border-yellow-500",
+  poor: "text-destructive border-destructive",
+};
 
-const LEGEND_ITEMS = [
-  { color: "#378ADD", label: "Person" },
-  { color: "#E24B4A", label: "Food/Drink" },
-  { color: "#EF9F27", label: "Wires/Cables" },
-  { color: "#7F77DD", label: "Tools" },
-  { color: "#1D9E75", label: "Components" },
-  { color: "#E24B4A", label: "Hazard" },
-  { color: "#639922", label: "Fire Exit" },
-];
-
-function boxColor(det) {
-  if (det.category === "FIRE_EXIT") {
-    return det.severity === "critical" ? "#E24B4A" : "#639922";
-  }
-  return CAT_COLOR[det.category] ?? "#ffffff";
+function eyeMeterColor(pct) {
+  if (pct >= 80) return "#639922";
+  if (pct >= 50) return "#EF9F27";
+  return "#E24B4A";
 }
 
-function hazardFromAnalysis(analysis) {
-  const risk = analysis?.overall_risk ?? "low";
-  if (risk === "low") return null;
-
-  const posture = analysis?.posture_issues ?? [];
-  const housekeeping = analysis?.housekeeping_issues ?? [];
-  const category = posture.length ? "posture" : housekeeping.length ? "housekeeping" : "risk";
-  const recommendations = [...posture, ...housekeeping]
-    .map((item) => item.description)
-    .filter(Boolean);
-
-  return {
-    severity: risk,
-    category,
-    description: analysis?.frame_summary ?? "",
-    recommendations,
-  };
+function WellnessBadge({ wellness }) {
+  if (!wellness || wellness === "good") {
+    return (
+      <Badge variant="outline" className="text-green-600 border-green-500 uppercase">
+        Good
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      variant={wellness === "poor" ? "destructive" : "outline"}
+      className={cn("uppercase", wellness !== "poor" && WELLNESS_BADGE[wellness])}
+    >
+      {wellness}
+    </Badge>
+  );
 }
 
 export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysis }) {
   const [status, setStatus] = useState("idle");
-  const [hazard, setHazard] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [detections, setDetections] = useState([]);
-  const [vidW, setVidW] = useState(0);
-  const [vidH, setVidH] = useState(0);
   const [legendOpen, setLegendOpen] = useState(false);
-  const containerRef = useRef(null);
   const abortRef = useRef(null);
   const sessionRef = useRef(0);
   const activeRef = useRef(false);
   const { videoRef, isActive, error, startCamera, stopCamera } = useCamera(INTERVAL_MS);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return undefined;
-
-    const obs = new ResizeObserver(([entry]) => {
-      setVidW(entry.contentRect.width);
-      setVidH(entry.contentRect.height);
-    });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!demoAnalysis) return;
-    setDetections(demoAnalysis.detections ?? []);
-    setHazard(hazardFromAnalysis(demoAnalysis));
-    setStatus(demoAnalysis.overall_risk === "low" ? "safe" : "warning");
-  }, [demoAnalysis]);
+  const currentAnalysis = demoAnalysis ?? analysis;
 
   useEffect(() => {
     activeRef.current = isActive;
     onMonitoringChange?.(isActive);
   }, [isActive, onMonitoringChange]);
 
+  useEffect(() => {
+    if (!demoAnalysis) return;
+    setAnalysis(demoAnalysis);
+    setStatus(demoAnalysis.overall_wellness === "good" ? "safe" : "warning");
+  }, [demoAnalysis]);
+
   const handleFrame = useCallback(async (dataUrl) => {
     const sessionId = sessionRef.current;
     const controller = new AbortController();
     abortRef.current = controller;
     setAnalyzing(true);
-
     try {
       const result = await analyzeFrame(dataUrl, controller.signal);
       if (controller.signal.aborted || sessionId !== sessionRef.current || !activeRef.current) return;
 
-      const analysis = result.analysis ?? {};
-      setDetections(analysis.detections ?? []);
-      const nextHazard = hazardFromAnalysis(analysis);
-      setHazard(nextHazard);
-      setStatus(nextHazard ? "warning" : "safe");
-      onAnalysis?.({ incident: result.incident ?? null, coach: result.coach ?? null });
+      const nextAnalysis = result.analysis ?? {};
+      setAnalysis(nextAnalysis);
+      setStatus(nextAnalysis.overall_wellness === "poor" ? "warning" : "safe");
+      onAnalysis?.({
+        analysis: nextAnalysis,
+        timeAlerts: result.time_based_alerts ?? [],
+        sessionStats: result.session_stats ?? {},
+        incident: result.incident ?? null,
+        coach: result.coach ?? null,
+      });
     } catch (requestError) {
       if (requestError?.name === "AbortError" || sessionId !== sessionRef.current) return;
       setStatus("error");
@@ -126,8 +101,7 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
       abortRef.current?.abort();
       stopCamera();
       setStatus("idle");
-      setHazard(null);
-      setDetections([]);
+      setAnalysis(null);
       setAnalyzing(false);
       onAnalysis?.(null);
     } else {
@@ -136,35 +110,47 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
     }
   };
 
-  const sev = hazard?.severity ?? "low";
-  const styles = SEVERITY[sev] ?? SEVERITY.low;
+  const posture = currentAnalysis?.posture ?? {};
+  const eyeStrain = currentAnalysis?.eye_strain ?? {};
+  const hydration = currentAnalysis?.hydration ?? {};
+  const focusState = currentAnalysis?.focus_state ?? {};
+  const wellness = currentAnalysis?.overall_wellness ?? "good";
+  const presence = currentAnalysis?.presence ?? false;
+  const proximity = currentAnalysis?.screen_proximity ?? {};
+  const eyeOpenness = currentAnalysis?.eye_openness ?? {};
+
+  const postureStatus = posture.status ?? "good";
+  const postureBar = POSTURE_BAR[postureStatus] ?? POSTURE_BAR.good;
   const showFeed = isActive || !!demoAnalysis;
-  const activeDetections = demoAnalysis ? (demoAnalysis.detections ?? []) : detections;
+  const isDrowsy = focusState.state === "drowsy";
+
+  const proxStatus = proximity.status ?? "safe";
+  const eyeRing = eyeStrain.detected && eyeStrain.severity !== "none";
+  const proxRing = proxStatus === "too_close";
+  const proxSubtle = proxStatus === "close";
+
+  const opennessPct = eyeOpenness.openness_percent ?? 80;
+  const eyeSore = eyeOpenness.sore_eyes_likely ?? false;
 
   return (
-    <Card className="overflow-hidden flex flex-col">
-      <div className={`border-b px-4 py-3 ${SURFACE.sectionBorder}`}>
-        <SectionHeader
-          title="Live Monitor"
-          subtitle={isActive ? `Scanning every ${INTERVAL_MS / 1000}s` : "Start monitoring to begin live workstation analysis."}
-          action={
-            <Badge className={isActive ? "bg-red-500/15 text-red-500" : demoAnalysis ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}>
-              {isActive ? "Camera On" : demoAnalysis ? "Demo Mode" : "Camera Off"}
-            </Badge>
-          }
-        />
-      </div>
-
-      <div
-        ref={containerRef}
-        className={cn(
-          "relative border-4 transition-colors duration-500",
-          showFeed ? styles.border : "border-border"
-        )}
-      >
+    <div className="bg-card rounded-xl overflow-hidden border border-border flex flex-col">
+      <div className="relative">
         <video
           ref={videoRef}
-          className="w-full aspect-video object-cover bg-black"
+          className={cn(
+            "w-full aspect-video object-cover bg-black",
+            proxRing && "outline outline-2 outline-offset-[-2px]",
+            !proxRing && eyeRing && "outline outline-2 outline-offset-[-2px] outline-red-500"
+          )}
+          style={
+            proxRing
+              ? { outline: "2px solid #EF9F27", outlineOffset: "-2px", animation: "borderPulse 1s ease-in-out infinite" }
+              : proxSubtle
+              ? { outline: "2px solid #EF9F2766", outlineOffset: "-2px" }
+              : eyeRing
+              ? { outline: "2px solid #ef4444", outlineOffset: "-2px", animation: "borderPulse 1s ease-in-out infinite" }
+              : undefined
+          }
           muted
           playsInline
         />
@@ -172,136 +158,156 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
         {!isActive && !demoAnalysis && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 gap-2">
             <span className="text-4xl">📷</span>
-            <p className="text-sm text-muted-foreground">Camera is off</p>
+            <p className="text-muted-foreground text-sm">Camera is off</p>
           </div>
         )}
 
         {demoAnalysis && !isActive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 gap-2">
             <span className="text-4xl">🎬</span>
-            <p className="text-sm font-medium text-white">Demo Mode</p>
-            <p className="px-4 text-center text-xs text-muted-foreground">{demoAnalysis.frame_summary}</p>
+            <p className="text-white text-sm font-medium">Demo Mode</p>
+            <p className="text-gray-300 text-xs text-center px-4">{demoAnalysis.frame_summary}</p>
+          </div>
+        )}
+
+        {showFeed && proxRing && (
+          <div
+            className="absolute top-0 left-0 right-0 z-30 flex items-center justify-center"
+            style={{ height: "32px", background: "rgba(239,159,39,0.85)", transition: "opacity 0.3s" }}
+          >
+            <span style={{ color: "#fff", fontSize: "13px", fontWeight: 500 }}>
+              Move back from screen
+            </span>
+          </div>
+        )}
+
+        {showFeed && (
+          <div className="absolute left-0 top-0 bottom-0 w-5 flex flex-col z-10">
+            <span
+              className="text-white text-[9px] font-bold py-1 px-0.5 bg-black/50 text-center"
+              style={{ writingMode: "vertical-rl" }}
+            >
+              {postureBar.label}
+            </span>
+            <div className={cn("flex-1", postureBar.bg, "opacity-80")} />
+          </div>
+        )}
+
+        {showFeed && (
+          <div className="absolute bottom-10 left-7 z-10" style={{ width: 120 }}>
+            <p style={{ color: "#fff", fontSize: 10, marginBottom: 2 }}>
+              Eye openness
+              {eyeSore && (
+                <span style={{ color: "#E24B4A", marginLeft: 4, fontSize: 10, fontWeight: 600 }}>
+                  Sore
+                </span>
+              )}
+            </p>
+            <div style={{ width: 120, height: 8, borderRadius: 4, background: "rgba(0,0,0,0.4)", overflow: "hidden" }}>
+              <div
+                style={{
+                  height: "100%",
+                  width: `${(opennessPct / 100) * 120}px`,
+                  background: eyeMeterColor(opennessPct),
+                  borderRadius: 4,
+                  transition: "width 0.5s ease",
+                }}
+              />
+            </div>
           </div>
         )}
 
         {isActive && (
-          <div className="absolute top-2 left-2 z-10">
-            <Badge className="gap-1.5 border border-border bg-black/60 text-white">
-              <span
-                className={cn(
-                  "h-2 w-2 rounded-full",
-                  analyzing ? "bg-yellow-400 animate-pulse" : "bg-red-500 animate-ping"
-                )}
-              />
-              {analyzing ? "ANALYZING" : "LIVE"}
+          <div className="absolute top-2 left-7 z-10">
+            <Badge variant="outline" className="bg-black/60 border-border text-white gap-1.5">
+              <span className={cn(
+                "h-2 w-2 rounded-full",
+                analyzing ? "bg-yellow-400 animate-pulse" : "bg-red-500 animate-ping"
+              )} />
+              Lance · 1 frame / 3s
             </Badge>
           </div>
         )}
 
-        {showFeed && vidW > 0 && activeDetections.map((det, i) => {
-          const color = boxColor(det);
-          const pulse = PULSE_CATS.has(det.category);
-          return (
-            <div
-              key={`${det.label}-${i}`}
-              style={{
-                position: "absolute",
-                left: `${det.box.x * vidW}px`,
-                top: `${det.box.y * vidH}px`,
-                width: `${det.box.w * vidW}px`,
-                height: `${det.box.h * vidH}px`,
-                border: `2px solid ${color}`,
-                borderRadius: "3px",
-                pointerEvents: "none",
-                animation: pulse ? "borderPulse 1s ease-in-out infinite" : "none",
-                zIndex: 5,
-              }}
-            >
-              <span
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  background: "rgba(0,0,0,0.65)",
-                  color: "#fff",
-                  fontSize: "11px",
-                  padding: "1px 5px",
-                  borderRadius: "3px",
-                  whiteSpace: "nowrap",
-                  lineHeight: "1.4",
-                }}
-              >
-                {det.label} {Math.round(det.confidence * 100)}%
-              </span>
-            </div>
-          );
-        })}
+        {showFeed && (
+          <div className="absolute top-2 right-2 z-10">
+            <WellnessBadge wellness={wellness} />
+          </div>
+        )}
 
-        {showFeed && hazard && (
-          <div className={cn(
-            "absolute bottom-0 left-0 right-0 bg-black/75 backdrop-blur-sm border-t-2 px-4 py-3 z-10",
-            styles.border
-          )}>
-            <div className="flex items-start gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="mb-1 flex items-center gap-2">
-                  <Badge className={styles.badge}>{hazard.severity}</Badge>
-                  <span className="text-xs font-medium capitalize text-gray-300">
-                    {hazard.category?.replace("_", " ")}
-                  </span>
-                </div>
-                <p className="line-clamp-2 text-sm leading-snug text-white">
-                  {hazard.description}
-                </p>
-                {hazard.recommendations?.length > 0 && (
-                  <p className="mt-1 truncate text-xs text-gray-400">
-                    ↳ {hazard.recommendations[0]}
-                  </p>
-                )}
-              </div>
+        {showFeed && isDrowsy && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-20">
+            <div className="text-white text-2xl font-bold drop-shadow-lg select-none">
+              Wake up! 😴
             </div>
           </div>
         )}
 
-        {showFeed && status === "safe" && !hazard && (
-          <div className="absolute bottom-2 left-2 right-2 z-10">
-            <Badge className="w-full justify-center border border-green-600 bg-green-900/70 text-green-300">
-              Workstation is safe
+        {showFeed && (
+          <div className="absolute bottom-2 right-2 z-10">
+            {hydration.water_visible ? (
+              <Badge variant="outline" className="bg-black/60 text-green-400 border-green-500 gap-1">
+                💧 Hydrated
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="bg-black/60 text-amber-400 border-amber-500 gap-1">
+                💧 No water
+              </Badge>
+            )}
+          </div>
+        )}
+
+        {showFeed && !presence && !isDrowsy && (
+          <div className="absolute bottom-2 left-7 right-20 z-10">
+            <Badge variant="outline" className="bg-black/60 text-muted-foreground border-border">
+              No person detected
             </Badge>
           </div>
         )}
 
         {status === "error" && (
-          <div className="absolute bottom-2 left-2 z-10">
-            <Badge className="bg-destructive/15 text-destructive">Analysis failed — retrying…</Badge>
+          <div className="absolute bottom-2 left-7 z-10">
+            <Badge variant="destructive">Analysis failed — retrying…</Badge>
           </div>
         )}
 
-        <div className="absolute bottom-2 right-2 z-20">
-          <Card className="overflow-hidden shadow-none" style={{ maxWidth: "160px" }}>
-            <button
-              className="flex w-full items-center justify-between gap-1 px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
-              onClick={() => setLegendOpen((open) => !open)}
-            >
-              <span>Legend</span>
-              <span>{legendOpen ? "▲" : "▼"}</span>
-            </button>
-            {legendOpen && (
-              <div className="flex flex-col gap-0.5 px-2 pb-2 pt-0">
-                {LEGEND_ITEMS.map(({ color, label }) => (
-                  <div key={label} className="flex items-center gap-1.5">
-                    <span style={{ width: 10, height: 10, borderRadius: 2, background: color, flexShrink: 0, display: "inline-block" }} />
-                    <span className="text-xs text-muted-foreground">{label}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+        <div className="absolute bottom-2 left-7 z-20">
+          {showFeed && status !== "error" && (
+            <Card className="shadow-none overflow-hidden" style={{ maxWidth: "180px" }}>
+              <button
+                className="w-full px-2 py-1 text-xs text-muted-foreground flex items-center justify-between gap-1 hover:bg-muted"
+                onClick={() => setLegendOpen((open) => !open)}
+              >
+                <span>Legend</span>
+                <span>{legendOpen ? "▲" : "▼"}</span>
+              </button>
+              {legendOpen && (
+                <CardContent className="px-2 pb-2 pt-0 flex flex-col gap-1">
+                  {[
+                    { color: "#22c55e", label: "Good posture bar" },
+                    { color: "#eab308", label: "Warning posture bar" },
+                    { color: "#ef4444", label: "Poor posture / eye strain ring" },
+                    { color: "#EF9F27", label: "Too close to screen (amber ring)" },
+                    { color: "#22c55e", label: "Hydrated" },
+                    { color: "#f59e0b", label: "No water seen" },
+                    { color: "#639922", label: "Eye meter — open" },
+                    { color: "#EF9F27", label: "Eye meter — partial" },
+                    { color: "#E24B4A", label: "Eye meter — low / sore" },
+                  ].map(({ color, label }) => (
+                    <div key={label} className="flex items-center gap-1.5">
+                      <span style={{ width: 10, height: 10, borderRadius: 2, background: color, flexShrink: 0, display: "inline-block" }} />
+                      <span className="text-xs text-muted-foreground">{label}</span>
+                    </div>
+                  ))}
+                </CardContent>
+              )}
+            </Card>
+          )}
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs text-muted-foreground sm:max-w-[70%]">
+      <div className="flex items-center justify-between px-4 py-3">
+        <p className="text-xs text-muted-foreground">
           {error ? (
             <span className="text-destructive">{error}</span>
           ) : isActive ? (
@@ -313,16 +319,15 @@ export default function CameraFeed({ onAnalysis, onMonitoringChange, demoAnalysi
           )}
         </p>
         {!demoAnalysis && (
-          <button
+          <Button
             onClick={toggle}
-            className={`w-full rounded-lg px-4 py-2 text-sm font-semibold transition-colors sm:w-auto ${
-              isActive ? "bg-destructive/15 text-destructive hover:bg-destructive/20" : "bg-primary text-primary-foreground hover:bg-primary/85"
-            }`}
+            variant={isActive ? "destructive" : "default"}
+            size="sm"
           >
             {isActive ? "Stop" : "Start Monitoring"}
-          </button>
+          </Button>
         )}
       </div>
-    </Card>
+    </div>
   );
 }
