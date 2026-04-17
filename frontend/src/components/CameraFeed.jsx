@@ -13,7 +13,6 @@ const SEV = {
 const CAT_COLOR = {
   PERSON:       "#378ADD",
   PPE_WORN:     "#639922",
-  PPE_MISSING:  "#E24B4A",
   FOOD_DRINK:   "#E24B4A",
   WIRES_CABLES: "#EF9F27",
   TOOLS:        "#7F77DD",
@@ -22,12 +21,11 @@ const CAT_COLOR = {
   FIRE_EXIT:    "#639922",
 };
 
-const PULSE_CATS = new Set(["PPE_MISSING", "HAZARDS", "FOOD_DRINK"]);
+const PULSE_CATS = new Set(["HAZARDS", "FOOD_DRINK"]);
 
 const LEGEND_ITEMS = [
   { color: "#378ADD", label: "Person" },
   { color: "#639922", label: "PPE Worn" },
-  { color: "#E24B4A", label: "PPE Missing" },
   { color: "#E24B4A", label: "Food/Drink" },
   { color: "#EF9F27", label: "Wires/Cables" },
   { color: "#7F77DD", label: "Tools" },

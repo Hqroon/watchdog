@@ -17,8 +17,7 @@ const DEMO_SCENARIOS = [
     posture_issues: [],
     housekeeping_issues: [],
     detections: [
-      { category: "PERSON",      label: "operator",         confidence: 0.97, box: { x: 0.1,  y: 0.05, w: 0.35, h: 0.8  }, severity: "ok"       },
-      { category: "PPE_MISSING", label: "no safety glasses", confidence: 0.91, box: { x: 0.12, y: 0.06, w: 0.18, h: 0.22 }, severity: "critical" },
+      { category: "PERSON", label: "operator", confidence: 0.97, box: { x: 0.1, y: 0.05, w: 0.35, h: 0.8 }, severity: "ok" },
     ],
   },
   {
@@ -69,9 +68,8 @@ const DEMO_SCENARIOS = [
       { issue: "drink bottle near components", severity: "critical", description: "Liquid contamination risk" },
     ],
     detections: [
-      { category: "PERSON",       label: "operator",          confidence: 0.97, box: { x: 0.15, y: 0.05, w: 0.4,  h: 0.8  }, severity: "ok"       },
-      { category: "PPE_MISSING",  label: "no safety glasses", confidence: 0.94, box: { x: 0.17, y: 0.06, w: 0.17, h: 0.2  }, severity: "critical" },
-      { category: "WIRES_CABLES", label: "exposed wiring",    confidence: 0.85, box: { x: 0.6,  y: 0.6,  w: 0.3,  h: 0.25 }, severity: "critical" },
+      { category: "PERSON",       label: "operator",       confidence: 0.97, box: { x: 0.15, y: 0.05, w: 0.4,  h: 0.8  }, severity: "ok"       },
+      { category: "WIRES_CABLES", label: "exposed wiring", confidence: 0.85, box: { x: 0.6,  y: 0.6,  w: 0.3,  h: 0.25 }, severity: "critical" },
       { category: "FOOD_DRINK",   label: "drink bottle",      confidence: 0.9,  box: { x: 0.7,  y: 0.2,  w: 0.1,  h: 0.25 }, severity: "critical" },
     ],
   },

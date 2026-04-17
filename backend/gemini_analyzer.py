@@ -25,7 +25,6 @@ SAFETY_PROMPT = """You are a factory floor safety and quality inspector. Analyze
 Detect and locate everything you can see from these categories:
 - PERSON: any worker, operator, or human figure
 - PPE_WORN: safety glasses, gloves, hard hat, face mask, hi-vis vest that is actively being worn
-- PPE_MISSING: PPE that should be worn but is visibly absent on a person
 - FOOD_DRINK: food, drink bottles, coffee cups, snacks, any beverage
 - WIRES_CABLES: loose, tangled, or floor-level cables and wires
 - TOOLS: screwdrivers, pliers, soldering irons, multimeters, any hand tools
