@@ -83,7 +83,9 @@ export default function AlertPanel({ incidents, stats }) {
                     <span className={`text-xs capitalize ${SURFACE.mutedText}`}>{inc.category}</span>
                     <span className="ml-auto text-xs text-gray-500">{formatTime(inc.timestamp)}</span>
                   </div>
-                  <p className="text-xs text-gray-300 truncate">{inc.description}</p>
+                  <p className="text-xs text-gray-300 break-words md:truncate">
+                    {inc.description}
+                  </p>
                 </div>
               </div>
               {!inc.resolved && (
