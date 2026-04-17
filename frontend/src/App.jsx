@@ -3,12 +3,17 @@ import CameraFeed from "./components/CameraFeed.jsx";
 import AlertPanel from "./components/AlertPanel.jsx";
 import CoachPanel from "./components/CoachPanel.jsx";
 import WorkerDashboard from "./components/WorkerDashboard.jsx";
+import lanceLogo from "./assets/lance-logo.png";
 import { useWatchdogMonitor } from "./hooks/useWatchdogMonitor.js";
 import { BUTTON, STATUS, SURFACE } from "./ui/tokens.js";
 import Badge from "./ui/Badge.jsx";
 import StatusDot from "./ui/StatusDot.jsx";
 
-const TABS = ["Monitor", "Worker Dashboard"];
+const TABS = [
+  { value: "monitor", label: "Monitor" },
+  { value: "dashboard", label: "Worker Dashboard" },
+];
+
 const THEME_KEY = "lance-theme";
 
 const DEMO_SCENARIOS = [
@@ -75,7 +80,7 @@ const DEMO_SCENARIOS = [
 ];
 
 export default function App() {
-  const [tab, setTab] = useState("Monitor");
+  const [tab, setTab] = useState("monitor");
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem(THEME_KEY) || "dark";
@@ -98,7 +103,7 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement;
-    root.classList.toggle("theme-light", theme === "light");
+    root.classList.toggle("dark", theme === "dark");
     try {
       localStorage.setItem(THEME_KEY, theme);
     } catch {
@@ -106,20 +111,51 @@ export default function App() {
     }
   }, [theme]);
 
+  useEffect(() => {
+    let favicon = document.querySelector("link[rel='icon']");
+    if (!favicon) {
+      favicon = document.createElement("link");
+      favicon.setAttribute("rel", "icon");
+      document.head.appendChild(favicon);
+    }
+    favicon.setAttribute("type", "image/png");
+    favicon.setAttribute("href", lanceLogo);
+  }, []);
+
   return (
     <div className={`min-h-screen flex flex-col ${SURFACE.app}`}>
-      <header className={`${SURFACE.card} rounded-none border-x-0 border-t-0 px-4 py-3 sm:px-6`}>
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🐕</span>
-            <h1 className="text-xl font-bold tracking-tight">Lance</h1>
-            <span className={`text-xs mt-0.5 hidden sm:block ${SURFACE.mutedText}`}>Workstation Safety Monitor</span>
+      <header className={`border-b ${SURFACE.sectionBorder} bg-background`}>
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3 shrink-0">
+            <img
+              src={lanceLogo}
+              alt="Lance logo"
+              className="h-9 w-9 rounded-full object-cover ring-1 ring-border"
+            />
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold tracking-tight text-foreground">Lance</h1>
+              <p className={`hidden text-xs sm:block ${SURFACE.mutedText}`}>Workstation Safety Monitor</p>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+          <nav className="flex w-full gap-1 sm:w-auto">
+            {TABS.map((item) => (
+              <button
+                key={item.value}
+                onClick={() => setTab(item.value)}
+                className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors sm:flex-none ${
+                  tab === item.value ? BUTTON.tabActive : BUTTON.primaryGhost
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-1.5">
               <StatusDot className={wsConnected ? STATUS.liveDot : STATUS.connectingDot} />
-              <span className={`text-xs hidden sm:block ${SURFACE.mutedText}`}>
+              <span className={`hidden text-xs sm:block ${SURFACE.mutedText}`}>
                 {wsConnected ? "Live" : "Connecting…"}
               </span>
             </div>
@@ -130,23 +166,18 @@ export default function App() {
               </Badge>
             )}
 
-            <nav className="flex w-full gap-1 sm:w-auto">
-              {TABS.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTab(t)}
-                  className={`flex-1 px-3 py-1.5 rounded text-sm font-medium transition-colors sm:flex-none ${
-                    tab === t ? BUTTON.tabActive : BUTTON.primaryGhost
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </nav>
+            <button
+              onClick={() => setDemoMode((value) => !value)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                demoMode ? BUTTON.tabActive : "bg-muted text-foreground hover:bg-accent"
+              }`}
+            >
+              {demoMode ? "Exit Demo" : "Demo"}
+            </button>
 
             <button
-              onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
-              className="px-2.5 py-1.5 rounded text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-800"
+              onClick={() => setTheme((value) => (value === "dark" ? "light" : "dark"))}
+              className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
               title="Toggle light/dark theme"
             >
               {theme === "dark" ? "Light" : "Dark"}
@@ -157,30 +188,25 @@ export default function App() {
 
       <main className="flex-1 p-4 sm:p-5">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
-          {tab === "Monitor" && (
+          {tab === "monitor" && (
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.75fr)_minmax(320px,0.95fr)] xl:items-start">
               <div className="flex min-w-0 flex-col gap-4">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={() => setDemoMode((value) => !value)}
-                    className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
-                      demoMode ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-gray-700 hover:bg-gray-600 text-gray-300"
-                    }`}
-                  >
-                    {demoMode ? "Exit Demo" : "Demo Mode"}
-                  </button>
-                  {demoMode && DEMO_SCENARIOS.map((scenario, index) => (
-                    <button
-                      key={scenario.label}
-                      onClick={() => setDemoIndex(index)}
-                      className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                        demoIndex === index ? BUTTON.tabActive : "bg-gray-800 hover:bg-gray-700 text-gray-400"
-                      }`}
-                    >
-                      {scenario.label}
-                    </button>
-                  ))}
-                </div>
+                {demoMode && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {DEMO_SCENARIOS.map((scenario, index) => (
+                      <button
+                        key={scenario.label}
+                        onClick={() => setDemoIndex(index)}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                          demoIndex === index ? BUTTON.tabActive : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
+                        }`}
+                      >
+                        {scenario.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <CameraFeed
                   onAnalysis={handleAnalysis}
                   onMonitoringChange={setMonitoringActive}
@@ -188,12 +214,18 @@ export default function App() {
                 />
                 <CoachPanel analysis={latestAnalysis} />
               </div>
+
               <div className="min-w-0">
-                <AlertPanel incidents={incidents} stats={stats} onResolveIncident={handleResolveIncident} />
+                <AlertPanel
+                  incidents={incidents}
+                  stats={stats}
+                  onResolveIncident={handleResolveIncident}
+                />
               </div>
             </div>
           )}
-          {tab === "Worker Dashboard" && (
+
+          {tab === "dashboard" && (
             <WorkerDashboard incidents={incidents} stats={stats} />
           )}
         </div>

@@ -38,36 +38,36 @@ export default function AlertPanel({ incidents, stats, onResolveIncident }) {
 
   return (
     <Card className="flex h-full max-h-[80vh] min-h-[20rem] flex-col xl:sticky xl:top-4">
-      <div className={`px-4 pt-4 pb-2 border-b ${SURFACE.sectionBorder}`}>
+      <div className={`border-b px-4 pt-4 pb-2 ${SURFACE.sectionBorder}`}>
         <SectionHeader
           title="Incidents"
           subtitle="Track live issues and resolve them as the workstation changes."
           className="mb-3"
         />
         {error && (
-          <p className="mb-2 rounded bg-red-950 px-2 py-1 text-xs text-red-300">{error}</p>
+          <p className="mb-2 rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</p>
         )}
-        <div className="grid grid-cols-3 gap-2 text-center text-xs">
-          <div className="bg-gray-800 rounded-lg py-2">
-            <p className="text-lg font-bold text-white">{stats.total}</p>
+        <div className="mb-3 grid grid-cols-3 gap-2 text-center text-xs">
+          <div className="rounded-lg bg-muted py-2">
+            <p className="text-lg font-semibold text-foreground">{stats.total}</p>
             <p className={SURFACE.mutedText}>Total</p>
           </div>
-          <div className="bg-yellow-900/50 rounded-lg py-2">
-            <p className="text-lg font-bold text-yellow-300">{stats.unresolved}</p>
+          <div className="rounded-lg bg-yellow-500/10 py-2">
+            <p className="text-lg font-semibold text-yellow-600">{stats.unresolved}</p>
             <p className={SURFACE.mutedText}>Open</p>
           </div>
-          <div className="bg-red-900/50 rounded-lg py-2">
-            <p className="text-lg font-bold text-red-400">{stats.by_severity?.high ?? 0}</p>
+          <div className="rounded-lg bg-destructive/10 py-2">
+            <p className="text-lg font-semibold text-destructive">{stats.by_severity?.high ?? 0}</p>
             <p className={SURFACE.mutedText}>High</p>
           </div>
         </div>
 
-        <div className="flex gap-1 mt-2">
+        <div className="flex gap-1">
           {["all", "unresolved", "high"].map((value) => (
             <button
               key={value}
               onClick={() => setFilter(value)}
-              className={`flex-1 text-xs py-1 rounded transition-colors capitalize ${
+              className={`flex-1 rounded px-2 py-1 text-xs capitalize transition-colors ${
                 filter === value ? BUTTON.tabActive : BUTTON.tabInactive
               }`}
             >
@@ -77,42 +77,42 @@ export default function AlertPanel({ incidents, stats, onResolveIncident }) {
         </div>
       </div>
 
-      <ul className={`flex-1 overflow-y-auto incident-scroll divide-y ${SURFACE.sectionBorder}`}>
+      <div className="incident-scroll flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
-          <li className="px-4 py-8 text-center text-gray-500 text-sm">No incidents.</li>
+          <p className="px-4 py-8 text-center text-sm text-muted-foreground">No incidents.</p>
         ) : (
-          filtered.map((inc) => (
-            <li
-              key={inc.id}
-              className={`px-4 py-3 ${SURFACE.hoverRow} ${inc.resolved ? "opacity-40" : ""}`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-1">
+          <div className={`divide-y ${SURFACE.sectionBorder}`}>
+            {filtered.map((inc) => (
+              <div
+                key={inc.id}
+                className={`px-4 py-3 ${SURFACE.hoverRow} ${inc.resolved ? "opacity-40" : ""}`}
+              >
+                <div className="border-l-4 border-l-border pl-3">
+                  <div className="mb-1 flex flex-wrap items-center gap-1.5">
                     <Badge className={SEVERITY[inc.severity]?.pill ?? SEVERITY.low.pill}>
                       {inc.severity}
                     </Badge>
                     <span className={`text-xs capitalize ${SURFACE.mutedText}`}>{inc.category}</span>
-                    <span className="ml-auto text-xs text-gray-500">{formatTime(inc.timestamp)}</span>
+                    <span className={`ml-auto text-xs ${SURFACE.mutedText}`}>{formatTime(inc.timestamp)}</span>
                   </div>
-                  <p className="text-xs text-gray-300 break-words md:truncate">
+                  <p className="break-words text-xs text-foreground md:truncate">
                     {inc.description}
                   </p>
                 </div>
+                {!inc.resolved && (
+                  <button
+                    onClick={() => handleResolve(inc.id)}
+                    disabled={!!pendingIds[inc.id]}
+                    className={`mt-1.5 text-xs disabled:cursor-not-allowed disabled:text-muted-foreground/60 ${BUTTON.link}`}
+                  >
+                    {pendingIds[inc.id] ? "Resolving..." : "Mark resolved"}
+                  </button>
+                )}
               </div>
-              {!inc.resolved && (
-                <button
-                  onClick={() => handleResolve(inc.id)}
-                  disabled={!!pendingIds[inc.id]}
-                  className={`mt-1.5 text-xs disabled:cursor-not-allowed disabled:text-gray-500 ${BUTTON.link}`}
-                >
-                  {pendingIds[inc.id] ? "Resolving..." : "Mark resolved"}
-                </button>
-              )}
-            </li>
-          ))
+            ))}
+          </div>
         )}
-      </ul>
+      </div>
     </Card>
   );
 }

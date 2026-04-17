@@ -6,11 +6,13 @@ Lance uses your laptop webcam, **OpenAI GPT-4o** for AI vision analysis, and a l
 
 ## Features
 
-- **Live webcam monitoring** — captures frames every 4 seconds
-- **GPT-4o vision analysis** — detects PPE violations, posture issues, proximity hazards, housekeeping problems
-- **Ollama-powered coaching** — generates friendly, actionable coaching messages locally (no data leaves your machine)
+- **Live webcam monitoring** — captures frames every 3 seconds
+- **GPT-4o vision analysis** — detects persons, food/drink, loose cables, tools, components, hazards, and fire exits with normalised bounding boxes
+- **Posture & housekeeping checks** — flags forward neck lean, clutter, spills, and trip hazards
+- **Ollama-powered coaching** — generates actionable coaching messages locally (no data leaves your machine)
 - **Real-time WebSocket alerts** — instant push to all connected clients
-- **Worker Dashboard** — charts by severity, category, and hour-of-day
+- **Worker Dashboard** — charts by severity, category, and hour-of-day with pattern-repeat alerts
+- **Demo mode** — 5 built-in scenarios (Hazard, Posture, Housekeeping, All Clear, Multi Violation)
 - **Incident management** — filter, review, and resolve incidents
 
 ---
@@ -20,7 +22,7 @@ Lance uses your laptop webcam, **OpenAI GPT-4o** for AI vision analysis, and a l
 ```
 watchdog/
   backend/          FastAPI + GPT-4o + Ollama
-  frontend/         React + Vite + Tailwind + Recharts
+  frontend/         React 18 + Vite 5 + Tailwind v4 + shadcn/ui + Recharts
   .env.example      Environment variable template
 ```
 
@@ -33,7 +35,7 @@ watchdog/
 | Tool | Version |
 |------|---------|
 | Python | 3.11+ |
-| Node.js | 20+ |
+| Node.js | 20+ (npm included) |
 | Ollama | latest |
 | An OpenAI API key | [platform.openai.com](https://platform.openai.com) |
 
@@ -91,6 +93,18 @@ npm run dev
 
 Frontend runs at `http://localhost:5173`.
 
+Key frontend packages (all installed via `npm install`):
+
+| Package | Purpose |
+|---------|---------|
+| `react` + `vite` | UI framework + build tool |
+| `tailwindcss` v4 + `@tailwindcss/vite` | Utility CSS (Vite plugin, no PostCSS config needed) |
+| `shadcn` + `radix-ui` | Component library (button, card, badge, tabs, table, etc.) |
+| `class-variance-authority` + `clsx` + `tailwind-merge` | shadcn variant helpers |
+| `lucide-react` | Icons |
+| `sonner` | Toast notifications |
+| `recharts` | Dashboard charts |
+
 ---
 
 ## Environment Variables
@@ -119,14 +133,14 @@ Frontend runs at `http://localhost:5173`.
 
 ```
 Webcam → CameraFeed (React)
-          │ POST /analyze (JPEG)
+          │ POST /analyze (base64 JPEG)
           ▼
       FastAPI backend
           │
-          ├─ GPT-4o vision     →  Safety analysis JSON
-          └─ Ollama (llama3)   →  Coaching message
+          ├─ GPT-4o vision     →  detections + posture/housekeeping JSON
+          └─ Ollama            →  coaching message (local)
                 │
-                ├─ IncidentStore (in-memory ring buffer)
+                ├─ IncidentStore (in-memory ring buffer, 200 max)
                 └─ WebSocket broadcast → AlertPanel / WorkerDashboard
 ```
 

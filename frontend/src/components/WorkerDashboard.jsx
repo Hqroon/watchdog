@@ -30,6 +30,18 @@ function groupByHour(incidents) {
     .map(([hour, count]) => ({ hour, count }));
 }
 
+function getRepeatedIssues(incidents) {
+  const map = {};
+  for (const inc of incidents) {
+    if (!inc.resolved && inc.category) {
+      map[inc.category] = (map[inc.category] || 0) + 1;
+    }
+  }
+  return Object.entries(map)
+    .filter(([, count]) => count >= 3)
+    .map(([category, count]) => ({ category, count }));
+}
+
 function formatRelativeTime(timestamp) {
   const now = Date.now();
   const diffMs = Math.max(0, now - timestamp * 1000);
@@ -66,6 +78,7 @@ export default function WorkerDashboard({ incidents, stats }) {
 
   const categoryData = groupByCategory(incidents);
   const hourData = groupByHour(incidents);
+  const repeatedIssues = getRepeatedIssues(incidents);
   const recentIncidents = incidents.slice(0, 20);
 
   function toggleExpanded(id) {
@@ -84,25 +97,38 @@ export default function WorkerDashboard({ incidents, stats }) {
         subtitle="Monitor safety volume, severity distribution, and recent incident history."
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[
-          { label: "Total Incidents", value: stats.total, color: "text-white" },
-          { label: "Unresolved", value: stats.unresolved, color: "text-yellow-400" },
-          { label: "High Severity", value: stats.by_severity?.high ?? 0, color: SEVERITY.high.text },
-          { label: "Low Severity", value: stats.by_severity?.low ?? 0, color: SEVERITY.low.text },
+          { label: "Total Incidents", value: stats.total, color: "text-foreground" },
+          { label: "Unresolved", value: stats.unresolved, color: "text-yellow-600" },
+          { label: "High Severity", value: stats.by_severity?.high ?? 0, color: "text-destructive" },
+          { label: "Low Severity", value: stats.by_severity?.low ?? 0, color: "text-green-600" },
         ].map((kpi) => (
-          <Card key={kpi.label} className="px-4 py-4 text-center">
-            <p className={`text-3xl font-bold ${kpi.color}`}>{kpi.value}</p>
-            <p className={`text-xs mt-1 ${SURFACE.mutedText}`}>{kpi.label}</p>
+          <Card key={kpi.label} className="px-4 py-4 text-center shadow-none">
+            <p className={`text-2xl font-semibold ${kpi.color}`}>{kpi.value}</p>
+            <p className={`mt-1 text-sm ${SURFACE.mutedText}`}>{kpi.label}</p>
           </Card>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="p-4">
+      {repeatedIssues.length > 0 && (
+        <div className="space-y-2">
+          {repeatedIssues.map(({ category, count }) => (
+            <Card key={category} className="border border-destructive/20 bg-destructive/5 px-4 py-3 shadow-none">
+              <p className="text-sm font-medium capitalize text-destructive">{category} — Repeated Issue</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {count} unresolved incidents in this category. Immediate attention recommended.
+              </p>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Card className="p-4 shadow-none">
           <SectionHeader title="By Severity" className="mb-3" />
           {pieData.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-8">No data yet</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
@@ -112,16 +138,16 @@ export default function WorkerDashboard({ incidents, stats }) {
                   ))}
                 </Pie>
                 <Legend />
-                <Tooltip />
+                <Tooltip contentStyle={CHART.tooltipContent} labelStyle={CHART.tooltipLabel} />
               </PieChart>
             </ResponsiveContainer>
           )}
         </Card>
 
-        <Card className="p-4">
+        <Card className="p-4 shadow-none">
           <SectionHeader title="By Category" className="mb-3" />
           {categoryData.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-8">No data yet</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={categoryData}>
@@ -140,7 +166,7 @@ export default function WorkerDashboard({ incidents, stats }) {
       </div>
 
       {hourData.length > 0 && (
-        <Card className="p-4">
+        <Card className="p-4 shadow-none">
           <SectionHeader title="Incidents by Hour" subtitle="Today" className="mb-3" />
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={hourData}>
@@ -153,14 +179,14 @@ export default function WorkerDashboard({ incidents, stats }) {
         </Card>
       )}
 
-      <Card className="overflow-hidden">
-        <div className={`px-4 py-3 border-b ${SURFACE.sectionBorder}`}>
+      <Card className="overflow-hidden shadow-none">
+        <div className={`border-b px-4 py-3 ${SURFACE.sectionBorder}`}>
           <SectionHeader title="Recent Incidents" />
         </div>
 
         <div className="md:hidden">
           {recentIncidents.length === 0 ? (
-            <div className="px-4 py-8 text-center text-gray-500 text-sm">
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
               No incidents recorded yet.
             </div>
           ) : (
@@ -186,12 +212,12 @@ export default function WorkerDashboard({ incidents, stats }) {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <Badge className={severity.pill}>{inc.severity}</Badge>
-                            <span className="text-sm capitalize text-white">
+                            <span className="text-sm capitalize text-foreground">
                               {inc.category}
                             </span>
                             <div className="flex items-center gap-1.5">
                               <StatusDot className={inc.resolved ? "bg-green-500" : "bg-yellow-500"} />
-                              <span className={`text-xs ${inc.resolved ? "text-green-400" : "text-yellow-400"}`}>
+                              <span className={`text-xs ${inc.resolved ? "text-green-600" : "text-yellow-600"}`}>
                                 {inc.resolved ? "Resolved" : "Open"}
                               </span>
                             </div>
@@ -219,13 +245,13 @@ export default function WorkerDashboard({ incidents, stats }) {
                       }`}
                     >
                       <div className="min-h-0">
-                        <div className="border-t border-gray-800 pt-3 mt-3">
-                          <p className="text-xs text-gray-300">
-                            <span className="font-semibold text-white">{formatRelativeTime(inc.timestamp)}</span>
-                            <span className={`mx-2 ${SURFACE.mutedText}`}>•</span>
-                            <span className={SURFACE.mutedText}>{formatExactTime(inc.timestamp)}</span>
+                        <div className="mt-3 border-t border-border pt-3">
+                          <p className="text-xs text-muted-foreground">
+                            <span className="font-semibold text-foreground">{formatRelativeTime(inc.timestamp)}</span>
+                            <span className="mx-2 text-muted-foreground">•</span>
+                            <span>{formatExactTime(inc.timestamp)}</span>
                           </p>
-                          <p className="mt-3 text-sm leading-relaxed text-gray-200">
+                          <p className="mt-3 text-sm leading-relaxed text-foreground">
                             {inc.description}
                           </p>
                         </div>
@@ -239,7 +265,7 @@ export default function WorkerDashboard({ incidents, stats }) {
         </div>
 
         <div className="hidden overflow-x-auto md:block">
-          <table className="w-full text-xs text-gray-300">
+          <table className="w-full text-xs text-foreground">
             <thead className={SURFACE.tableHeader}>
               <tr>
                 <th className="px-4 py-2 text-left">Time</th>
@@ -261,19 +287,19 @@ export default function WorkerDashboard({ incidents, stats }) {
                     </Badge>
                   </td>
                   <td className={`px-4 py-2 capitalize ${SURFACE.mutedText}`}>{inc.category}</td>
-                  <td className="px-4 py-2 max-w-xs truncate">{inc.description}</td>
+                  <td className="max-w-xs truncate px-4 py-2">{inc.description}</td>
                   <td className="px-4 py-2">
                     {inc.resolved ? (
-                      <span className="text-green-400">Resolved</span>
+                      <span className="text-green-600">Resolved</span>
                     ) : (
-                      <span className="text-yellow-400">Open</span>
+                      <span className="text-yellow-600">Open</span>
                     )}
                   </td>
                 </tr>
               ))}
               {recentIncidents.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
                     No incidents recorded yet.
                   </td>
                 </tr>
