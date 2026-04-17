@@ -161,6 +161,22 @@ async def get_stats():
     return store.stats()
 
 
+@app.post("/incidents/seed")
+async def seed_incident(body: dict):
+    """Dev-only endpoint used by seed_incidents.py to inject fake data."""
+    inc = Incident(
+        timestamp=body.get("timestamp", __import__("time").time()),
+        severity=body.get("severity", "low"),
+        category=body.get("category", "none"),
+        description=body.get("description", ""),
+        coach_message=body.get("coach_message", ""),
+        resolved=body.get("resolved", False),
+    )
+    store.add(inc)
+    await manager.broadcast({"event": "new_incident", "incident": inc.to_dict(), "coach": inc.coach_message})
+    return inc.to_dict()
+
+
 # ---------------------------------------------------------------------------
 # WebSocket endpoint
 # ---------------------------------------------------------------------------

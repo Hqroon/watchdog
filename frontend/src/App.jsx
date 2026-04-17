@@ -1,21 +1,30 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import CameraFeed from "./components/CameraFeed.jsx";
 import AlertPanel from "./components/AlertPanel.jsx";
 import CoachPanel from "./components/CoachPanel.jsx";
 import SupervisorDashboard from "./components/SupervisorDashboard.jsx";
 import { useWebSocket } from "./hooks/useWebSocket.js";
+import { getIncidents } from "./api/gemini.js";
 
 const TABS = ["Monitor", "Supervisor"];
 
 export default function App() {
-  const [tab, setTab] = useState("Monitor");
+  const [tab, setTab]                 = useState("Monitor");
   const [latestAnalysis, setLatestAnalysis] = useState(null);
-  const [incidents, setIncidents] = useState([]);
-  const [stats, setStats] = useState({ total: 0, unresolved: 0, by_severity: { low: 0, medium: 0, high: 0 } });
+  const [incidents, setIncidents]     = useState([]);
+  const [stats, setStats]             = useState({ total: 0, unresolved: 0, by_severity: { low: 0, medium: 0, high: 0 } });
+  const [wsConnected, setWsConnected] = useState(false);
 
-  // WebSocket for real-time updates
-  useWebSocket("/ws", (msg) => {
+  // Load existing incidents on mount
+  useEffect(() => {
+    getIncidents(100)
+      .then(setIncidents)
+      .catch(() => {});
+  }, []);
+
+  const handleWsMessage = useCallback((msg) => {
     if (msg.event === "connected") {
+      setWsConnected(true);
       setStats(msg.stats);
     } else if (msg.event === "new_incident") {
       setIncidents((prev) => [msg.incident, ...prev].slice(0, 100));
@@ -35,23 +44,46 @@ export default function App() {
       );
       setStats((prev) => ({ ...prev, unresolved: Math.max(0, prev.unresolved - 1) }));
     }
-  });
+  }, []);
+
+  const wsRef = useWebSocket("/ws", handleWsMessage);
+
+  // Track WS disconnect
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws) return;
+    const onClose = () => setWsConnected(false);
+    ws.addEventListener("close", onClose);
+    return () => ws.removeEventListener("close", onClose);
+  }, [wsRef]);
 
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col">
-      {/* Header */}
+      {/* ── Header ── */}
       <header className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-2xl">🐕</span>
           <h1 className="text-xl font-bold tracking-tight">WatchDog</h1>
-          <span className="text-xs text-gray-400 mt-0.5">Workstation Safety Monitor</span>
+          <span className="text-xs text-gray-400 mt-0.5 hidden sm:block">Workstation Safety Monitor</span>
         </div>
+
         <div className="flex items-center gap-4">
+          {/* WS status dot */}
+          <div className="flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${wsConnected ? "bg-green-500" : "bg-gray-600 animate-pulse"}`} />
+            <span className="text-xs text-gray-400 hidden sm:block">
+              {wsConnected ? "Live" : "Connecting…"}
+            </span>
+          </div>
+
+          {/* Unresolved badge */}
           {stats.unresolved > 0 && (
             <span className="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">
-              {stats.unresolved} UNRESOLVED
+              {stats.unresolved} OPEN
             </span>
           )}
+
+          {/* Tab bar */}
           <nav className="flex gap-1">
             {TABS.map((t) => (
               <button
@@ -70,15 +102,13 @@ export default function App() {
         </div>
       </header>
 
-      {/* Content */}
+      {/* ── Content ── */}
       <main className="flex-1 p-4">
         {tab === "Monitor" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 flex flex-col gap-4">
               <CameraFeed onAnalysis={setLatestAnalysis} />
-              {latestAnalysis && (
-                <CoachPanel analysis={latestAnalysis} />
-              )}
+              <CoachPanel analysis={latestAnalysis} />
             </div>
             <AlertPanel incidents={incidents} stats={stats} />
           </div>
