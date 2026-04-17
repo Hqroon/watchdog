@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useCamera } from "../hooks/useCamera.js";
 import { analyzeFrame } from "../api/gemini.js";
 
-const INTERVAL_MS = 4000; // capture every 4 seconds
+const INTERVAL_MS = 3000; // capture every 3 seconds
 
 const severityColor = {
   low: "border-green-500",

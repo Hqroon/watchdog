@@ -6,13 +6,13 @@ Sends a JPEG frame to Gemini and returns a structured safety analysis.
 
 from __future__ import annotations
 
-import base64
 import json
 import os
 import re
 from typing import Optional
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -20,7 +20,6 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 MODEL_NAME = "gemini-1.5-flash"
 
-# System prompt injected with every request
 SAFETY_PROMPT = """
 You are an AI-powered workstation safety inspector for a smart manufacturing facility.
 
@@ -44,24 +43,18 @@ If the scene is safe, set "safe": true, "severity": "low", "category": "none".
 Respond ONLY with the JSON object — no markdown fences, no extra text.
 """
 
-
-def _init_model() -> genai.GenerativeModel:
-    if not GEMINI_API_KEY:
-        raise EnvironmentError(
-            "GEMINI_API_KEY is not set. Add it to your .env file."
-        )
-    genai.configure(api_key=GEMINI_API_KEY)
-    return genai.GenerativeModel(MODEL_NAME)
+_client: Optional[genai.Client] = None
 
 
-_model: Optional[genai.GenerativeModel] = None
-
-
-def _get_model() -> genai.GenerativeModel:
-    global _model
-    if _model is None:
-        _model = _init_model()
-    return _model
+def _get_client() -> genai.Client:
+    global _client
+    if _client is None:
+        if not GEMINI_API_KEY:
+            raise EnvironmentError(
+                "GEMINI_API_KEY is not set. Add it to your .env file."
+            )
+        _client = genai.Client(api_key=GEMINI_API_KEY)
+    return _client
 
 
 def analyze_frame(jpeg_bytes: bytes) -> dict:
@@ -74,16 +67,14 @@ def analyze_frame(jpeg_bytes: bytes) -> dict:
     Returns:
         dict with keys: safe, severity, category, description, recommendations
     """
-    model = _get_model()
+    client = _get_client()
 
-    image_part = {
-        "mime_type": "image/jpeg",
-        "data": base64.b64encode(jpeg_bytes).decode("utf-8"),
-    }
+    image_part = types.Part.from_bytes(data=jpeg_bytes, mime_type="image/jpeg")
 
-    response = model.generate_content(
-        [SAFETY_PROMPT, image_part],
-        generation_config=genai.GenerationConfig(
+    response = client.models.generate_content(
+        model=MODEL_NAME,
+        contents=[SAFETY_PROMPT, image_part],
+        config=types.GenerateContentConfig(
             temperature=0.1,
             max_output_tokens=512,
         ),
@@ -98,7 +89,6 @@ def analyze_frame(jpeg_bytes: bytes) -> dict:
     try:
         result = json.loads(raw)
     except json.JSONDecodeError:
-        # Fallback: treat as unknown / low severity
         result = {
             "safe": True,
             "severity": "low",

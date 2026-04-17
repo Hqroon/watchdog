@@ -25,3 +25,17 @@ export async function analyzeFrame(dataUrl) {
 
   return response.json();
 }
+
+/**
+ * Fetches recent incidents from the backend.
+ *
+ * @param {number} limit  Max number of incidents to return (default 50)
+ * @returns {Promise<Array>}
+ */
+export async function getIncidents(limit = 50) {
+  const response = await fetch(`/incidents?limit=${limit}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch incidents (${response.status})`);
+  }
+  return response.json();
+}
